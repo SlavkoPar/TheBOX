@@ -17,6 +17,33 @@ main {
   box-shadow: var(--shadow);
 }
 
+.stack {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.demo-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.demo-list li {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+  padding: 8px 10px;
+  color: var(--text-h);
+}
+
+.demo-list li + li {
+  border-top: 1px solid var(--border);
+}
+
 .card label {
   display: flex;
   flex-direction: column;

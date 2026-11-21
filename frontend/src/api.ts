@@ -41,6 +41,18 @@ async function request<T>(method: string, path: string, body?: unknown): Promise
 
 type Message = { message: string }
 
+export type DemoItem = {
+  id: number
+  name: string
+  size: string
+}
+
+export type DemoData = {
+  message: string
+  server_time: string
+  items: DemoItem[]
+}
+
 export const api = {
   me: () => request<{ user: User }>('GET', '/auth/me'),
   register: (email: string, password: string) =>
@@ -51,6 +63,7 @@ export const api = {
   confirm: (token: string) => request<Message>('POST', '/auth/confirm', { token }),
   resendConfirmation: (email: string) =>
     request<Message>('POST', '/auth/resend-confirmation', { email }),
+  demo: () => request<DemoData>('GET', '/demo'),
 }
 
 export function errorMessage(err: unknown): string {

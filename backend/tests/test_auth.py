@@ -137,3 +137,18 @@ def test_register_reports_mail_failure(client, monkeypatch):
 
     monkeypatch.setattr(auth_module, "send_email", boom)
     assert client.post("/api/auth/register", json=CREDS).status_code == 502
+
+
+def test_demo_requires_login(client, outbox):
+    assert client.get("/api/demo").status_code == 401
+
+    client.post("/api/auth/register", json=CREDS)
+    client.post("/api/auth/confirm", json={"token": token_from(outbox)})
+    client.post("/api/auth/login", json=CREDS)
+
+    r = client.get("/api/demo")
+    assert r.status_code == 200
+    data = r.get_json()
+    assert data["message"] == "Hello, user@example.com!"
+    assert len(data["items"]) == 3
+    assert data["server_time"]
