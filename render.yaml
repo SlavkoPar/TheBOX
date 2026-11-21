@@ -1,0 +1,43 @@
+# Render Blueprint: one Docker web service (Flask API + built React frontend)
+# and one Postgres database. https://render.com/docs/blueprint-spec
+
+databases:
+  - name: thebox-db
+    plan: free
+    region: frankfurt
+    databaseName: thebox
+    user: thebox
+
+services:
+  - type: web
+    name: thebox
+    runtime: docker
+    plan: free
+    region: frankfurt
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /api/health
+    autoDeployTrigger: commit
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: thebox-db
+          property: connectionString
+      - key: SECRET_KEY
+        generateValue: true
+      - key: SESSION_COOKIE_SECURE
+        value: "1"
+      # FRONTEND_URL is not set: it defaults to the service's public Render URL.
+      # Set it in the dashboard if you add a custom domain.
+
+      # SMTP settings: Render asks for these when the Blueprint is first created.
+      - key: SMTP_HOST
+        sync: false
+      - key: SMTP_PORT
+        sync: false
+      - key: SMTP_USERNAME
+        sync: false
+      - key: SMTP_PASSWORD
+        sync: false
+      - key: MAIL_FROM
+        sync: false

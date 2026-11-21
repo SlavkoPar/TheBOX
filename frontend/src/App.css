@@ -1,0 +1,101 @@
+main {
+  padding: 24px 16px 48px;
+}
+
+.card {
+  width: 360px;
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 24px;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  text-align: left;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  box-shadow: var(--shadow);
+}
+
+.card label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 15px;
+  color: var(--text-h);
+}
+
+.card small {
+  color: var(--text);
+  font-size: 13px;
+}
+
+.card input {
+  font: inherit;
+  padding: 8px 10px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg);
+  color: var(--text-h);
+}
+
+.card input:focus-visible,
+.card button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.card button {
+  font: inherit;
+  padding: 10px 14px;
+  border: 1px solid var(--accent);
+  border-radius: 6px;
+  background: var(--accent);
+  color: #fff;
+  cursor: pointer;
+}
+
+.card button.secondary {
+  background: transparent;
+  color: var(--accent);
+}
+
+.card button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.card a {
+  color: var(--accent);
+}
+
+.hint {
+  font-size: 15px;
+}
+
+.error,
+.notice {
+  font-size: 15px;
+  padding: 8px 10px;
+  border-radius: 6px;
+}
+
+.error {
+  color: #b42318;
+  background: rgba(180, 35, 24, 0.1);
+}
+
+.notice {
+  color: var(--text-h);
+  background: var(--accent-bg);
+}
+
+@media (prefers-color-scheme: dark) {
+  .error {
+    color: #fda29b;
+  }
+
+  .card button:not(.secondary) {
+    color: #16171d;
+  }
+}
