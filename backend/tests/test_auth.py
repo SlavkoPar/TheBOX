@@ -1,49 +1,8 @@
-import re
-
 import pytest
 
 from app import auth as auth_module
-from app import create_app
-from app.config import Config
-from app.extensions import db
+from conftest import CREDS, token_from
 
-
-class SqliteConfig(Config):
-    TESTING = True
-    SECRET_KEY = "test"
-    SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
-    SQLALCHEMY_ENGINE_OPTIONS = {}
-    SMTP_HOST = ""
-
-
-@pytest.fixture
-def app():
-    app = create_app(SqliteConfig)
-    with app.app_context():
-        db.create_all()
-        yield app
-        db.drop_all()
-
-
-@pytest.fixture
-def client(app):
-    return app.test_client()
-
-
-@pytest.fixture
-def outbox(monkeypatch):
-    sent = []
-    monkeypatch.setattr(
-        auth_module, "send_email", lambda to, subject, body: sent.append((to, subject, body))
-    )
-    return sent
-
-
-CREDS = {"email": "user@example.com", "password": "correct horse"}
-
-
-def token_from(outbox):
-    return re.search(r"token=(\S+)", outbox[-1][2]).group(1)
 
 
 def test_register_confirm_login_flow(client, outbox):
@@ -139,16 +98,35 @@ def test_register_reports_mail_failure(client, monkeypatch):
     assert client.post("/api/auth/register", json=CREDS).status_code == 502
 
 
-def test_demo_requires_login(client, outbox):
-    assert client.get("/api/demo").status_code == 401
+def test_confirmation_email_links_to_frontend(client, outbox):
+    client.post("/api/auth/register", json=CREDS)
+    to, subject, body = outbox[0]
+    assert "Confirm" in subject
+    assert "http://frontend.test/confirm?token=" in body
+
+
+def test_confirm_rejects_token_for_deleted_user(app, client, outbox):
+    from app.extensions import db
+    from app.models import User
 
     client.post("/api/auth/register", json=CREDS)
-    client.post("/api/auth/confirm", json={"token": token_from(outbox)})
-    client.post("/api/auth/login", json=CREDS)
+    db.session.delete(db.session.scalar(db.select(User)))
+    db.session.commit()
+    assert client.post("/api/auth/confirm", json={"token": token_from(outbox)}).status_code == 400
 
-    r = client.get("/api/demo")
-    assert r.status_code == 200
-    data = r.get_json()
-    assert data["message"] == "Hello, user@example.com!"
-    assert len(data["items"]) == 3
-    assert data["server_time"]
+
+def test_password_is_stored_hashed(app, client, outbox):
+    from app.extensions import db
+    from app.models import User
+
+    client.post("/api/auth/register", json=CREDS)
+    user = db.session.scalar(db.select(User))
+    assert CREDS["password"] not in user.password_hash
+    assert user.check_password(CREDS["password"])
+    assert not user.check_password("something else")
+
+
+def test_non_json_bodies_are_rejected_cleanly(client, outbox):
+    assert client.post("/api/auth/register", data="not json").status_code == 400
+    assert client.post("/api/auth/login", data="not json").status_code == 401
+    assert client.post("/api/auth/login", json={"email": 5, "password": ["x"]}).status_code == 401
