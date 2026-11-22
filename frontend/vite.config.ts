@@ -13,5 +13,7 @@ export default defineConfig({
     environment: 'jsdom',
     setupFiles: './src/test/setup.ts',
     restoreMocks: true,
+    // Tests that type into forms are slow when every file starts at once.
+    testTimeout: 20000,
   },
 })

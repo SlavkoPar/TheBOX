@@ -22,6 +22,9 @@ describe('App', () => {
 
     expect(await screen.findByText('user@example.com')).toBeInTheDocument()
     expect(await screen.findByText('Hello!')).toBeInTheDocument()
+    // One tile per app
+    const tiles = screen.getByRole('navigation', { name: 'Your apps' })
+    expect(tiles.querySelectorAll('a')).toHaveLength(5)
   })
 
   it('treats an unreachable server as signed out', async () => {
@@ -55,7 +58,8 @@ describe('App', () => {
     })
     renderApp(<App />, '/')
 
-    await userEvent.click(await screen.findByRole('button', { name: 'Sign out' }))
+    await userEvent.click(await screen.findByRole('button', { name: 'Account' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Sign out' }))
 
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
   })

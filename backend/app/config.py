@@ -56,6 +56,15 @@ class Config:
     # so the app and the API share one origin. Unset in local development.
     FRONTEND_DIST = os.environ.get("FRONTEND_DIST", "")
 
+    # Uploads (Drive and Photos). Files are stored in the database.
+    MAX_CONTENT_LENGTH = int(os.environ.get("MAX_UPLOAD_MB") or 25) * 1024 * 1024
+    # Days a shared link stays valid; 0 means it never expires.
+    SHARE_MAX_AGE_DAYS = int(os.environ.get("SHARE_MAX_AGE_DAYS") or 30)
+
+    # How often the web process checks for calendar reminders to email.
+    # 0 turns the background check off (use `flask send-reminders` from cron instead).
+    REMINDER_INTERVAL_SECONDS = int(os.environ.get("REMINDER_INTERVAL_SECONDS") or 60)
+
     # SMTP. If SMTP_HOST is empty, emails are written to the log instead of sent.
     SMTP_HOST = os.environ.get("SMTP_HOST", "")
     SMTP_PORT = int(os.environ.get("SMTP_PORT") or 587)

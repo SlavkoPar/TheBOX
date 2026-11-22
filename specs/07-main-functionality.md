@@ -1,0 +1,8 @@
+- Clone main functionality of Google Apps: Drive (with docs), Photos, Tasks, Calendar 
+- Enable list of Receipients with: First Name, Last name, email, Address, Country, Mobile
+- Make dropdown for Apps, close to profile icon, with icon or each App and Receipients
+- For Drive enable subfolders and selection of docs and sending of email with link to list of receipients, which enables them to view or download docs
+- Make the same for Photos
+- For documents enable encryption and decryption of them
+- Make common code for all apps
+- For Calendar enable sending of email some period before event start

@@ -1,37 +1,35 @@
-import { useState } from 'react'
-import { errorMessage } from '../api'
+import { Link } from 'react-router-dom'
+import { APPS } from '../apps'
 import { useAuth } from '../auth'
 import DemoFetch from '../components/DemoFetch'
+import { Icon } from '../common/icons'
 
 export default function Home() {
-  const { user, logout } = useAuth()
-  const [error, setError] = useState('')
-
-  async function onLogout() {
-    setError('')
-    try {
-      await logout()
-    } catch (err) {
-      setError(errorMessage(err))
-    }
-  }
+  const { user } = useAuth()
 
   return (
-    <div className="stack">
-      <div className="card">
-        <h2>Welcome</h2>
-        <p>
-          Signed in as <strong>{user?.email}</strong>.
-        </p>
-        {error && (
-          <p className="error" role="alert">
-            {error}
+    <div className="page">
+      <div className="page-header">
+        <div>
+          <h2>Welcome</h2>
+          <p className="hint">
+            Signed in as <strong>{user?.email}</strong>.
           </p>
-        )}
-        <button type="button" className="secondary" onClick={onLogout}>
-          Sign out
-        </button>
+        </div>
       </div>
+
+      <nav className="app-tiles" aria-label="Your apps">
+        {APPS.map((app) => (
+          <Link key={app.id} to={app.path} className={`app-tile app-${app.id}`}>
+            <span className="app-icon">
+              <Icon name={app.icon} size={28} />
+            </span>
+            <strong>{app.name}</strong>
+            <small>{app.description}</small>
+          </Link>
+        ))}
+      </nav>
+
       <DemoFetch />
     </div>
   )
