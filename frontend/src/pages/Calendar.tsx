@@ -1,6 +1,7 @@
-import { useMemo, useState } from 'react'
-import { eventsApi } from '../api'
-import type { CalendarEvent, EventInput } from '../api'
+import { useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
+import { REPEAT_LABELS, eventsApi, recipientsApi } from '../api'
+import type { CalendarEvent, EventInput, Recipient, Repeat } from '../api'
 import { ConfirmDialog, FormModal } from '../common/Modal'
 import {
   browserTimeZone,
@@ -11,9 +12,19 @@ import {
   toLocalInput,
 } from '../common/format'
 import { Icon } from '../common/icons'
+import { endOfDay, occurrencesByDay, startOfDay, startOfWeek } from '../common/recurrence'
+import type { Occurrence } from '../common/recurrence'
 import { useCollection } from '../common/useCollection'
 
 const WEEKDAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun']
+const REPEATS = Object.keys(REPEAT_LABELS) as Repeat[]
+
+type Mode = 'month' | 'week' | 'day'
+const MODES: { id: Mode; label: string }[] = [
+  { id: 'month', label: 'Month' },
+  { id: 'week', label: 'Week' },
+  { id: 'day', label: 'Day' },
+]
 
 /** Choices for "email me a reminder" — minutes before the event starts. */
 const REMINDER_OPTIONS: { minutes: number; label: string }[] = [
@@ -33,12 +44,14 @@ type Draft = { event: CalendarEvent | null; start: Date; end: Date }
 
 type FormProps = {
   draft: Draft
+  /** null while loading or if they could not be loaded */
+  recipients: Recipient[] | null
   onClose: () => void
   onSave: (data: EventInput) => Promise<unknown>
   onDelete?: () => void
 }
 
-function EventForm({ draft, onClose, onSave, onDelete }: FormProps) {
+function EventForm({ draft, recipients, onClose, onSave, onDelete }: FormProps) {
   const existing = draft.event
   const [title, setTitle] = useState(existing?.title ?? '')
   const [allDay, setAllDay] = useState(existing?.all_day ?? false)
@@ -49,6 +62,9 @@ function EventForm({ draft, onClose, onSave, onDelete }: FormProps) {
   const [reminder, setReminder] = useState(
     existing?.reminder_minutes == null ? '' : String(existing.reminder_minutes),
   )
+  const [repeat, setRepeat] = useState<Repeat>(existing?.repeat ?? 'none')
+  const [repeatUntil, setRepeatUntil] = useState(existing?.repeat_until ?? '')
+  const [invited, setInvited] = useState<Set<number>>(new Set(existing?.recipient_ids ?? []))
 
   // An existing reminder that is not one of the standard choices stays selectable.
   const options = useMemo(() => {
@@ -58,6 +74,13 @@ function EventForm({ draft, onClose, onSave, onDelete }: FormProps) {
     }
     return [...REMINDER_OPTIONS, { minutes: current, label: `${current} minutes before` }]
   }, [existing])
+
+  function toggleInvite(id: number) {
+    const next = new Set(invited)
+    if (next.has(id)) next.delete(id)
+    else next.add(id)
+    setInvited(next)
+  }
 
   function submit() {
     let startsAt: Date
@@ -77,6 +100,9 @@ function EventForm({ draft, onClose, onSave, onDelete }: FormProps) {
     if (endsAt < startsAt) {
       return Promise.reject(new Error('The end must not be before the start.'))
     }
+    if (repeat !== 'none' && repeatUntil && repeatUntil < dateKey(startsAt)) {
+      return Promise.reject(new Error('“Repeat until” must not be before the start.'))
+    }
     return onSave({
       title,
       description,
@@ -86,6 +112,9 @@ function EventForm({ draft, onClose, onSave, onDelete }: FormProps) {
       all_day: allDay,
       timezone: browserTimeZone(),
       reminder_minutes: reminder === '' ? null : Number(reminder),
+      repeat,
+      repeat_until: repeat !== 'none' && repeatUntil ? repeatUntil : null,
+      recipient_ids: [...invited],
     })
   }
 
@@ -129,6 +158,27 @@ function EventForm({ draft, onClose, onSave, onDelete }: FormProps) {
           />
         </label>
       </div>
+      <div className="form-row">
+        <label>
+          Repeat
+          <select value={repeat} onChange={(e) => setRepeat(e.target.value as Repeat)}>
+            {REPEATS.map((value) => (
+              <option key={value} value={value}>
+                {REPEAT_LABELS[value]}
+              </option>
+            ))}
+          </select>
+        </label>
+        {repeat !== 'none' && (
+          <label>
+            Repeat until (optional)
+            <input type="date" value={repeatUntil} onChange={(e) => setRepeatUntil(e.target.value)} />
+          </label>
+        )}
+      </div>
+      {existing && existing.repeat !== 'none' && (
+        <p className="hint">Changes apply to every occurrence of this repeating event.</p>
+      )}
       <label>
         Location
         <input value={location} onChange={(e) => setLocation(e.target.value)} />
@@ -148,7 +198,34 @@ function EventForm({ draft, onClose, onSave, onDelete }: FormProps) {
           ))}
         </select>
       </label>
-      <p className="hint">The reminder is emailed to your account's address.</p>
+
+      {recipients && recipients.length > 0 && (
+        <fieldset className="recipient-picker">
+          <legend>Invite</legend>
+          {recipients.map((recipient) => (
+            <label className="check" key={recipient.id}>
+              <input
+                type="checkbox"
+                checked={invited.has(recipient.id)}
+                onChange={() => toggleInvite(recipient.id)}
+              />
+              <span>
+                {`${recipient.first_name} ${recipient.last_name}`.trim()} <small>{recipient.email}</small>
+              </span>
+            </label>
+          ))}
+        </fieldset>
+      )}
+      {recipients && recipients.length === 0 && (
+        <p className="hint">
+          To invite people, first add them in <Link to="/recipients">Recipients</Link>.
+        </p>
+      )}
+      <p className="hint">
+        The reminder is emailed to you{invited.size > 0 ? ' and to the people you invite' : ''}. Invited
+        people also get an invitation email when you save.
+      </p>
+
       {onDelete && (
         <button type="button" className="link-button danger-text" onClick={onDelete}>
           Delete this event
@@ -158,39 +235,65 @@ function EventForm({ draft, onClose, onSave, onDelete }: FormProps) {
   )
 }
 
-/** Events for each local day they cover, keyed by YYYY-MM-DD. */
-function eventsByDay(events: CalendarEvent[]): Map<string, CalendarEvent[]> {
-  const days = new Map<string, CalendarEvent[]>()
-  for (const event of events) {
-    const last = new Date(event.ends_at)
-    const day = new Date(event.starts_at)
-    day.setHours(0, 0, 0, 0)
-    // Cap the walk so one bad row cannot loop for ever.
-    for (let i = 0; i < 370 && day <= last; i += 1) {
-      const key = dateKey(day)
-      days.set(key, [...(days.get(key) ?? []), event])
-      day.setDate(day.getDate() + 1)
-    }
+function shiftCursor(cursor: Date, mode: Mode, by: number): Date {
+  if (mode === 'month') return new Date(cursor.getFullYear(), cursor.getMonth() + by, 1)
+  const next = new Date(cursor)
+  next.setDate(cursor.getDate() + (mode === 'week' ? 7 * by : by))
+  return next
+}
+
+function rangeTitle(cursor: Date, mode: Mode): string {
+  if (mode === 'month') return cursor.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })
+  if (mode === 'day') {
+    return cursor.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' })
   }
-  return days
+  const first = startOfWeek(cursor)
+  const last = new Date(first)
+  last.setDate(first.getDate() + 6)
+  const day = (date: Date, withYear: boolean) =>
+    date.toLocaleDateString(undefined, { day: 'numeric', month: 'short', ...(withYear ? { year: 'numeric' } : {}) })
+  return `${day(first, false)} – ${day(last, true)}`
+}
+
+function timeRange({ event, start, end }: Occurrence): string {
+  if (event.all_day) return 'All day'
+  return `${formatTime(start)} – ${formatTime(end)}`
 }
 
 export default function Calendar() {
   const { items, loading, error, create, update, remove } = useCollection(eventsApi)
-  const [month, setMonth] = useState(() => {
-    const now = new Date()
-    return new Date(now.getFullYear(), now.getMonth(), 1)
-  })
+  const [mode, setMode] = useState<Mode>('month')
+  const [cursor, setCursor] = useState(() => startOfDay(new Date()))
   const [draft, setDraft] = useState<Draft | null>(null)
   const [deleting, setDeleting] = useState<CalendarEvent | null>(null)
-
-  const days = useMemo(() => monthGrid(month.getFullYear(), month.getMonth()), [month])
-  const byDay = useMemo(() => eventsByDay(items), [items])
+  const [recipients, setRecipients] = useState<Recipient[] | null>(null)
   const [todayKey] = useState(() => dateKey(new Date()))
 
-  function shift(months: number) {
-    setMonth(new Date(month.getFullYear(), month.getMonth() + months, 1))
-  }
+  // Inviting is optional: if recipients cannot be loaded the calendar still works.
+  useEffect(() => {
+    let cancelled = false
+    recipientsApi.list().then(
+      (loaded) => {
+        if (!cancelled) setRecipients(loaded)
+      },
+      () => undefined,
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [])
+
+  const days = useMemo(() => {
+    if (mode === 'month') return monthGrid(cursor.getFullYear(), cursor.getMonth())
+    if (mode === 'day') return [startOfDay(cursor)]
+    const first = startOfWeek(cursor)
+    return Array.from({ length: 7 }, (_, i) => new Date(first.getFullYear(), first.getMonth(), first.getDate() + i))
+  }, [mode, cursor])
+
+  const byDay = useMemo(
+    () => occurrencesByDay(items, days[0], endOfDay(days[days.length - 1])),
+    [items, days],
+  )
 
   function newEventOn(day: Date) {
     const start = new Date(day)
@@ -201,36 +304,70 @@ export default function Calendar() {
   }
 
   function edit(event: CalendarEvent) {
+    // A repeating event is edited as a whole, from its first occurrence.
     setDraft({ event, start: new Date(event.starts_at), end: new Date(event.ends_at) })
   }
+
+  function eventButton(occurrence: Occurrence, key: string, detailed: boolean) {
+    const { event, start } = occurrence
+    const startsToday = dateKey(start) === key
+    return (
+      <button
+        type="button"
+        className={detailed ? 'calendar-event detailed' : 'calendar-event'}
+        key={`${event.id}-${start.getTime()}`}
+        title={event.title}
+        onClick={() => edit(event)}
+      >
+        {detailed ? (
+          <span className="event-time">{timeRange(occurrence)}</span>
+        ) : (
+          !event.all_day && startsToday && <span className="event-time">{formatTime(start)}</span>
+        )}
+        <span className="event-title">{event.title}</span>
+        {detailed && event.location && <span className="event-place">{event.location}</span>}
+        {event.repeat !== 'none' && <Icon name="repeat" size={12} />}
+        {event.reminder_minutes != null && <Icon name="bell" size={12} />}
+      </button>
+    )
+  }
+
+  const addLabel = (day: Date) =>
+    `Add event on ${day.toLocaleDateString(undefined, { day: 'numeric', month: 'long' })}`
 
   return (
     <div className="page">
       <div className="page-header">
         <div className="calendar-nav">
-          <button type="button" className="icon-button" aria-label="Previous month" onClick={() => shift(-1)}>
+          <button type="button" className="icon-button" aria-label={`Previous ${mode}`} onClick={() => setCursor(shiftCursor(cursor, mode, -1))}>
             <Icon name="left" />
           </button>
-          <h2 aria-live="polite">
-            {month.toLocaleDateString(undefined, { month: 'long', year: 'numeric' })}
-          </h2>
-          <button type="button" className="icon-button" aria-label="Next month" onClick={() => shift(1)}>
+          <h2 aria-live="polite">{rangeTitle(cursor, mode)}</h2>
+          <button type="button" className="icon-button" aria-label={`Next ${mode}`} onClick={() => setCursor(shiftCursor(cursor, mode, 1))}>
             <Icon name="right" />
           </button>
-          <button
-            type="button"
-            className="secondary"
-            onClick={() => {
-              const now = new Date()
-              setMonth(new Date(now.getFullYear(), now.getMonth(), 1))
-            }}
-          >
+          <button type="button" className="secondary" onClick={() => setCursor(startOfDay(new Date()))}>
             Today
           </button>
         </div>
-        <button type="button" onClick={() => newEventOn(new Date())}>
-          <Icon name="plus" size={18} /> New event
-        </button>
+        <div className="toolbar">
+          <div className="segmented" role="group" aria-label="View">
+            {MODES.map(({ id, label }) => (
+              <button
+                key={id}
+                type="button"
+                className={mode === id ? undefined : 'secondary'}
+                aria-pressed={mode === id}
+                onClick={() => setMode(id)}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+          <button type="button" onClick={() => newEventOn(mode === 'month' ? new Date() : cursor)}>
+            <Icon name="plus" size={18} /> New event
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -240,61 +377,69 @@ export default function Calendar() {
       )}
       {loading && <p>Loading…</p>}
 
-      <div className="calendar" role="grid" aria-label="Month">
-        <div className="calendar-row calendar-head" role="row">
-          {WEEKDAYS.map((name) => (
-            <div key={name} role="columnheader">
-              {name}
+      {mode === 'month' && (
+        <div className="calendar" role="grid" aria-label="Month">
+          <div className="calendar-row calendar-head" role="row">
+            {WEEKDAYS.map((name) => (
+              <div key={name} role="columnheader">
+                {name}
+              </div>
+            ))}
+          </div>
+          {Array.from({ length: 6 }, (_, week) => (
+            <div className="calendar-row" role="row" key={week}>
+              {days.slice(week * 7, week * 7 + 7).map((day) => {
+                const key = dateKey(day)
+                const classes = ['calendar-day']
+                if (day.getMonth() !== cursor.getMonth()) classes.push('other-month')
+                if (key === todayKey) classes.push('today')
+                return (
+                  <div className={classes.join(' ')} role="gridcell" key={key}>
+                    <button type="button" className="day-number" aria-label={addLabel(day)} onClick={() => newEventOn(day)}>
+                      {day.getDate()}
+                    </button>
+                    {(byDay.get(key) ?? []).map((occurrence) => eventButton(occurrence, key, false))}
+                  </div>
+                )
+              })}
             </div>
           ))}
         </div>
-        {Array.from({ length: 6 }, (_, week) => (
-          <div className="calendar-row" role="row" key={week}>
-            {days.slice(week * 7, week * 7 + 7).map((day) => {
-              const key = dateKey(day)
-              const dayEvents = byDay.get(key) ?? []
-              const classes = ['calendar-day']
-              if (day.getMonth() !== month.getMonth()) classes.push('other-month')
-              if (key === todayKey) classes.push('today')
-              return (
-                <div className={classes.join(' ')} role="gridcell" key={key}>
-                  <button
-                    type="button"
-                    className="day-number"
-                    aria-label={`Add event on ${day.toLocaleDateString(undefined, {
-                      day: 'numeric',
-                      month: 'long',
-                    })}`}
-                    onClick={() => newEventOn(day)}
-                  >
-                    {day.getDate()}
+      )}
+
+      {mode !== 'month' && (
+        <div className={mode === 'week' ? 'agenda agenda-week' : 'agenda'}>
+          {days.map((day) => {
+            const key = dateKey(day)
+            const list = byDay.get(key) ?? []
+            const name = day.toLocaleDateString(undefined, { weekday: 'long', day: 'numeric', month: 'long' })
+            return (
+              <section key={key} className={key === todayKey ? 'agenda-day today' : 'agenda-day'} aria-label={name}>
+                <header>
+                  <h3>
+                    {day.toLocaleDateString(undefined, { weekday: 'short' })}{' '}
+                    <span className="agenda-date">{day.getDate()}</span>
+                  </h3>
+                  <button type="button" className="icon-button" aria-label={addLabel(day)} onClick={() => newEventOn(day)}>
+                    <Icon name="plus" size={18} />
                   </button>
-                  {dayEvents.map((event) => (
-                    <button
-                      type="button"
-                      className="calendar-event"
-                      key={event.id}
-                      title={event.title}
-                      onClick={() => edit(event)}
-                    >
-                      {!event.all_day && dateKey(new Date(event.starts_at)) === key && (
-                        <span className="event-time">{formatTime(event.starts_at)}</span>
-                      )}
-                      <span className="event-title">{event.title}</span>
-                      {event.reminder_minutes != null && <Icon name="bell" size={12} />}
-                    </button>
-                  ))}
-                </div>
-              )
-            })}
-          </div>
-        ))}
-      </div>
+                </header>
+                {list.length === 0 ? (
+                  <p className="hint">No events</p>
+                ) : (
+                  list.map((occurrence) => eventButton(occurrence, key, true))
+                )}
+              </section>
+            )
+          })}
+        </div>
+      )}
 
       {draft && (
         <EventForm
           key={draft.event?.id ?? 'new'}
           draft={draft}
+          recipients={recipients}
           onClose={() => setDraft(null)}
           onSave={(data) => (draft.event ? update(draft.event.id, data) : create(data))}
           onDelete={
@@ -311,7 +456,11 @@ export default function Calendar() {
       {deleting && (
         <ConfirmDialog
           title="Delete event"
-          message={`Delete “${deleting.title}”?`}
+          message={
+            deleting.repeat === 'none'
+              ? `Delete “${deleting.title}”?`
+              : `Delete “${deleting.title}” and all its repeats?`
+          }
           confirmLabel="Delete"
           onClose={() => setDeleting(null)}
           onConfirm={() => remove(deleting.id)}

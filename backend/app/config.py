@@ -58,6 +58,8 @@ class Config:
 
     # Uploads (Drive and Photos). Files are stored in the database.
     MAX_CONTENT_LENGTH = int(os.environ.get("MAX_UPLOAD_MB") or 25) * 1024 * 1024
+    # Storage each user may use across Drive and Photos, trash included; 0 = no limit.
+    STORAGE_QUOTA_MB = int(os.environ.get("STORAGE_QUOTA_MB") or 500)
     # Days a shared link stays valid; 0 means it never expires.
     SHARE_MAX_AGE_DAYS = int(os.environ.get("SHARE_MAX_AGE_DAYS") or 30)
 
@@ -72,4 +74,9 @@ class Config:
     SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
     SMTP_USE_TLS = _bool("SMTP_USE_TLS", True)  # STARTTLS (port 587)
     SMTP_USE_SSL = _bool("SMTP_USE_SSL", False)  # implicit TLS (port 465)
-    MAIL_FROM = os.environ.get("MAIL_FROM") or "TheBOX <no-reply@localhost>"
+    # SMTP_FROM is accepted as another name for MAIL_FROM.
+    MAIL_FROM = (
+        os.environ.get("MAIL_FROM")
+        or os.environ.get("SMTP_FROM")
+        or "TheBOX <no-reply@localhost>"
+    )

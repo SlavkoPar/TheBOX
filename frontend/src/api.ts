@@ -123,6 +123,18 @@ export type Recipient = RecipientInput & WithId
 
 export const recipientsApi = collection<Recipient, RecipientInput>('/recipients')
 
+// --- Repeats (tasks and events) ------------------------------------------------------
+
+export type Repeat = 'none' | 'daily' | 'weekly' | 'monthly' | 'yearly'
+
+export const REPEAT_LABELS: Record<Repeat, string> = {
+  none: 'Does not repeat',
+  daily: 'Every day',
+  weekly: 'Every week',
+  monthly: 'Every month',
+  yearly: 'Every year',
+}
+
 // --- Tasks ------------------------------------------------------------------------
 
 export type TaskInput = {
@@ -130,10 +142,20 @@ export type TaskInput = {
   notes: string
   due_date: string | null // YYYY-MM-DD
   is_done: boolean
+  /** null = the built-in "My tasks" list */
+  list_id: number | null
+  /** set for a subtask */
+  parent_id: number | null
+  /** when a repeating task is completed, the next one is created */
+  repeat: Repeat
 }
 export type Task = TaskInput & WithId & { completed_at: string | null; created_at: string }
 
 export const tasksApi = collection<Task, TaskInput>('/tasks')
+
+export type TaskList = WithId & { name: string }
+
+export const taskListsApi = collection<TaskList, { name: string }>('/task-lists')
 
 // --- Calendar ---------------------------------------------------------------------
 
@@ -146,6 +168,10 @@ export type EventInput = {
   all_day: boolean
   timezone: string
   reminder_minutes: number | null
+  repeat: Repeat
+  repeat_until: string | null // YYYY-MM-DD, inclusive
+  /** recipients invited to the event: they get the invitation and the reminders */
+  recipient_ids: number[]
 }
 export type CalendarEvent = EventInput & WithId & { reminder_sent_at: string | null }
 
@@ -160,6 +186,9 @@ export type Folder = {
   name: string
   parent_id: number | null
   created_at: string
+  deleted_at: string | null
+  /** where it is, e.g. "Work / Reports" — in search results and the trash */
+  path?: string
 }
 
 export type FileItem = {
@@ -171,6 +200,13 @@ export type FileItem = {
   is_encrypted: boolean
   created_at: string
   updated_at: string
+  deleted_at: string | null
+  /** images only */
+  width: number | null
+  height: number | null
+  taken_at: string | null
+  camera: string | null
+  path?: string
 }
 
 export type Listing = {
@@ -180,26 +216,59 @@ export type Listing = {
   files: FileItem[]
 }
 
+export type Found = { folders: Folder[]; files: FileItem[] }
+
 export type ShareResult = {
   link: string
   sent: string[]
   failed: string[]
 }
 
+/** A link that was emailed to recipients. */
+export type SharedLink = {
+  id: number
+  link: string
+  message: string
+  created_at: string
+  expires_at: string | null
+  expired: boolean
+  files: FileItem[]
+  recipients: Recipient[]
+}
+
+/** Text-only preview of an Office file. */
+export type PreviewBlock =
+  | { type: 'heading'; level: number; text: string }
+  | { type: 'paragraph' | 'list-item'; text: string }
+  | { type: 'table'; rows: string[][] }
+
+export type Preview =
+  | { kind: 'document'; truncated: boolean; blocks: PreviewBlock[] }
+  | { kind: 'sheets'; truncated: boolean; sheets: { name: string; rows: string[][] }[] }
+  | { kind: 'slides'; truncated: boolean; slides: { title: string; lines: string[] }[] }
+
 export function filesApi(app: FileApp) {
   const base = `/${app}`
   const contentPath = (id: number, download: boolean) =>
     `${base}/files/${id}/content${download ? '?download=1' : ''}`
+  const forGood = (permanent: boolean) => (permanent ? '?permanent=1' : '')
 
   return {
     list: (folderId: number | null) =>
       request<Listing>('GET', `${base}/items${folderId ? `?folder=${folderId}` : ''}`),
+    /** Every folder, flat — for the "move to" dialog. */
+    folders: () => request<{ items: Folder[] }>('GET', `${base}/folders`).then((d) => d.items),
+    search: (text: string) => request<Found>('GET', `${base}/search?q=${encodeURIComponent(text)}`),
 
     createFolder: (name: string, parentId: number | null) =>
       request<Folder>('POST', `${base}/folders`, { name, parent_id: parentId }),
     renameFolder: (id: number, name: string) =>
       request<Folder>('PATCH', `${base}/folders/${id}`, { name }),
-    deleteFolder: (id: number) => request<null>('DELETE', `${base}/folders/${id}`),
+    moveFolder: (id: number, parentId: number | null) =>
+      request<Folder>('PATCH', `${base}/folders/${id}`, { parent_id: parentId }),
+    /** Moves to the trash; `permanent` deletes for good. */
+    deleteFolder: (id: number, permanent = false) =>
+      request<null>('DELETE', `${base}/folders/${id}${forGood(permanent)}`),
 
     upload: (files: File[], folderId: number | null) => {
       const form = new FormData()
@@ -209,15 +278,27 @@ export function filesApi(app: FileApp) {
     },
     renameFile: (id: number, name: string) =>
       request<FileItem>('PATCH', `${base}/files/${id}`, { name }),
-    deleteFile: (id: number) => request<null>('DELETE', `${base}/files/${id}`),
+    moveFile: (id: number, folderId: number | null) =>
+      request<FileItem>('PATCH', `${base}/files/${id}`, { folder_id: folderId }),
+    /** Moves to the trash; `permanent` deletes for good. */
+    deleteFile: (id: number, permanent = false) =>
+      request<null>('DELETE', `${base}/files/${id}${forGood(permanent)}`),
+
+    trash: () => request<Found>('GET', `${base}/trash`),
+    restore: (fileIds: number[], folderIds: number[]) =>
+      request<null>('POST', `${base}/trash/restore`, { file_ids: fileIds, folder_ids: folderIds }),
+    emptyTrash: () => request<null>('DELETE', `${base}/trash`),
 
     /** URL for <img src>, links and new tabs (unencrypted files only). */
     contentUrl: (id: number, download = false) => `/api${contentPath(id, download)}`,
+    /** Small version of an image, for grids. */
+    thumbUrl: (id: number) => `/api${base}/files/${id}/thumb`,
     /** Content as a Blob; pass the password for an encrypted document. */
     content: (id: number, password?: string) =>
       password === undefined
         ? requestBlob('GET', contentPath(id, false))
         : requestBlob('POST', contentPath(id, false), { password }),
+    preview: (id: number) => request<Preview>('GET', `${base}/files/${id}/preview`),
     saveText: (id: number, content: string) =>
       request<FileItem>('PUT', `${base}/files/${id}/text`, { content }),
 
@@ -226,20 +307,34 @@ export function filesApi(app: FileApp) {
     decrypt: (id: number, password: string) =>
       request<FileItem>('POST', `${base}/files/${id}/decrypt`, { password }),
 
-    share: (fileIds: number[], recipientIds: number[], message: string) =>
+    /** Sharing a folder shares the files in it (and its subfolders) at that moment. */
+    share: (fileIds: number[], folderIds: number[], recipientIds: number[], message: string) =>
       request<ShareResult>('POST', `${base}/shares`, {
         file_ids: fileIds,
+        folder_ids: folderIds,
         recipient_ids: recipientIds,
         message,
       }),
+    shares: () => request<{ items: SharedLink[] }>('GET', `${base}/shares`).then((d) => d.items),
+    revokeShare: (id: number) => request<null>('DELETE', `${base}/shares/${id}`),
   }
 }
 
 export type FilesApi = ReturnType<typeof filesApi>
 
+export type StorageInfo = { used: number; quota: number }
+
+export const storageApi = {
+  /** Bytes used across Drive and Photos, and the limit (0 = none). */
+  get: () => request<StorageInfo>('GET', '/storage'),
+}
+
 // --- Shared links (public, no sign-in) ----------------------------------------------
 
-export type SharedFile = Pick<FileItem, 'id' | 'name' | 'mime_type' | 'size' | 'is_encrypted'>
+export type SharedFile = Pick<
+  FileItem,
+  'id' | 'name' | 'mime_type' | 'size' | 'is_encrypted' | 'width' | 'height'
+>
 
 export type SharedListing = {
   app: FileApp
@@ -253,6 +348,7 @@ export const sharedApi = {
   get: (token: string) => request<SharedListing>('GET', `/shared/${token}`),
   contentUrl: (token: string, id: number, download = false) =>
     `/api/shared/${token}/files/${id}${download ? '?download=1' : ''}`,
+  thumbUrl: (token: string, id: number) => `/api/shared/${token}/files/${id}/thumb`,
   decrypted: (token: string, id: number, password: string) =>
     requestBlob('POST', `/shared/${token}/files/${id}`, { password }),
 }

@@ -6,15 +6,17 @@ import type { SharedListing } from '../api'
 import { mockApi } from '../test/utils'
 import Shared from './Shared'
 
+const NO_SIZE = { width: null, height: null }
+
 const DOCS: SharedListing = {
   app: 'drive',
   shared_by: 'user@example.com',
   message: 'For the meeting.',
   expires_at: '2026-12-22T08:00:00+00:00',
   files: [
-    { id: 10, name: 'report.pdf', mime_type: 'application/pdf', size: 2048, is_encrypted: false },
-    { id: 11, name: 'data.zip', mime_type: 'application/zip', size: 5000, is_encrypted: false },
-    { id: 12, name: 'plan.txt', mime_type: 'text/plain', size: 15, is_encrypted: true },
+    { id: 10, name: 'report.pdf', mime_type: 'application/pdf', size: 2048, is_encrypted: false, ...NO_SIZE },
+    { id: 11, name: 'data.zip', mime_type: 'application/zip', size: 5000, is_encrypted: false, ...NO_SIZE },
+    { id: 12, name: 'plan.txt', mime_type: 'text/plain', size: 15, is_encrypted: true, ...NO_SIZE },
   ],
 }
 
@@ -93,14 +95,19 @@ describe('Shared', () => {
           ...DOCS,
           app: 'photos',
           message: '',
-          files: [{ id: 20, name: 'beach.jpg', mime_type: 'image/jpeg', size: 9000, is_encrypted: false }],
+          files: [
+            { id: 20, name: 'beach.jpg', mime_type: 'image/jpeg', size: 9000, is_encrypted: false, width: 800, height: 600 },
+          ],
         },
       },
     })
     renderShared()
 
     expect(await screen.findByRole('heading', { name: '1 photo shared with you' })).toBeInTheDocument()
-    expect(screen.getByRole('img', { name: 'beach.jpg' })).toHaveAttribute('src', '/api/shared/tok/files/20')
+    // Small version in the gallery; the link opens the full photo
+    const image = screen.getByRole('img', { name: 'beach.jpg' })
+    expect(image).toHaveAttribute('src', '/api/shared/tok/files/20/thumb')
+    expect(image.closest('a')).toHaveAttribute('href', '/api/shared/tok/files/20')
     expect(screen.getByRole('link', { name: 'Download beach.jpg' })).toHaveAttribute(
       'href',
       '/api/shared/tok/files/20?download=1',

@@ -86,14 +86,14 @@ def test_folder_names_unique_per_parent(user):
     assert user.post("/api/drive/folders", json={"name": "x", "parent_id": 9999}).status_code == 404
 
 
-def test_deleting_a_folder_deletes_everything_inside(user):
+def test_permanently_deleting_a_folder_deletes_everything_inside(user):
     work = new_folder(user, "Work")
     sub = new_folder(user, "Sub", work["id"])
     uploaded(user, name="a.txt", folder_id=work["id"])
     uploaded(user, name="b.txt", folder_id=sub["id"])
     keep = uploaded(user, name="keep.txt")
 
-    assert user.delete(f"/api/drive/folders/{work['id']}").status_code == 204
+    assert user.delete(f"/api/drive/folders/{work['id']}?permanent=1").status_code == 204
 
     assert db.session.scalars(db.select(Folder)).all() == []
     assert [f.id for f in db.session.scalars(db.select(File))] == [keep["id"]]

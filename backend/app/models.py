@@ -85,8 +85,33 @@ class Recipient(OwnedMixin, db.Model):
 # --- Tasks --------------------------------------------------------------------
 
 
+class TaskList(OwnedMixin, db.Model):
+    __tablename__ = "task_lists"
+
+    name = db.Column(db.String(100), nullable=False)
+
+    tasks = db.relationship("Task", back_populates="task_list", cascade="all, delete-orphan")
+
+    def to_dict(self):
+        return {"id": self.id, "name": self.name}
+
+
+TASK_REPEATS = ("none", "daily", "weekly", "monthly", "yearly")
+
+
 class Task(OwnedMixin, db.Model):
     __tablename__ = "tasks"
+
+    # NULL list = the built-in "My tasks" list.
+    list_id = db.Column(db.Integer, db.ForeignKey("task_lists.id", ondelete="CASCADE"), index=True)
+    # Subtasks point at their parent; one level deep.
+    parent_id = db.Column(db.Integer, db.ForeignKey("tasks.id", ondelete="CASCADE"), index=True)
+    # When a repeating task is completed, the next one is created.
+    repeat = db.Column(db.String(10), nullable=False, default="none", server_default="none")
+
+    task_list = db.relationship("TaskList", back_populates="tasks")
+    parent = db.relationship("Task", remote_side="Task.id", back_populates="subtasks")
+    subtasks = db.relationship("Task", back_populates="parent", cascade="all, delete-orphan")
 
     title = db.Column(db.String(255), nullable=False)
     notes = db.Column(db.Text, nullable=False, default="")
@@ -97,6 +122,9 @@ class Task(OwnedMixin, db.Model):
     def to_dict(self):
         return {
             "id": self.id,
+            "list_id": self.list_id,
+            "parent_id": self.parent_id,
+            "repeat": self.repeat,
             "title": self.title,
             "notes": self.notes,
             "due_date": self.due_date.isoformat() if self.due_date else None,
@@ -107,6 +135,17 @@ class Task(OwnedMixin, db.Model):
 
 
 # --- Calendar -----------------------------------------------------------------
+
+
+EVENT_REPEATS = ("none", "daily", "weekly", "monthly", "yearly")
+
+event_recipients = db.Table(
+    "event_recipients",
+    db.Column("event_id", db.ForeignKey("events.id", ondelete="CASCADE"), primary_key=True),
+    db.Column(
+        "recipient_id", db.ForeignKey("recipients.id", ondelete="CASCADE"), primary_key=True
+    ),
+)
 
 
 class Event(OwnedMixin, db.Model):
@@ -123,6 +162,17 @@ class Event(OwnedMixin, db.Model):
     # Minutes before starts_at to email a reminder; NULL means no reminder.
     reminder_minutes = db.Column(db.Integer)
     reminder_sent_at = db.Column(db.DateTime(timezone=True))
+    # Start of the occurrence the last reminder was sent for (repeating events
+    # get one reminder per occurrence).
+    reminded_for = db.Column(db.DateTime(timezone=True))
+
+    # Repeats on the same local time every day / week / month / year, for ever
+    # or until `repeat_until` (inclusive, a local date).
+    repeat = db.Column(db.String(10), nullable=False, default="none", server_default="none")
+    repeat_until = db.Column(db.Date)
+
+    # Recipients invited to the event: emailed an invitation and the reminders.
+    recipients = db.relationship("Recipient", secondary=event_recipients, backref="events")
 
     def to_dict(self):
         return {
@@ -136,6 +186,9 @@ class Event(OwnedMixin, db.Model):
             "timezone": self.timezone,
             "reminder_minutes": self.reminder_minutes,
             "reminder_sent_at": iso(self.reminder_sent_at),
+            "repeat": self.repeat,
+            "repeat_until": self.repeat_until.isoformat() if self.repeat_until else None,
+            "recipient_ids": sorted(r.id for r in self.recipients),
         }
 
 
@@ -164,6 +217,8 @@ class Folder(OwnedMixin, db.Model):
     app = db.Column(db.String(16), nullable=False)
     parent_id = db.Column(db.Integer, db.ForeignKey("folders.id", ondelete="CASCADE"), index=True)
     name = db.Column(db.String(255), nullable=False)
+    # Set when the folder is moved to the trash; everything inside goes with it.
+    deleted_at = db.Column(db.DateTime(timezone=True), index=True)
 
     parent = db.relationship("Folder", remote_side="Folder.id", back_populates="children")
     children = db.relationship(
@@ -179,6 +234,7 @@ class Folder(OwnedMixin, db.Model):
             "name": self.name,
             "parent_id": self.parent_id,
             "created_at": iso(self.created_at),
+            "deleted_at": iso(self.deleted_at),
         }
 
 
@@ -199,8 +255,19 @@ class File(OwnedMixin, db.Model):
     enc_salt = db.Column(db.LargeBinary)
     enc_nonce = db.Column(db.LargeBinary)
 
+    # Set when the file is moved to the trash.
+    deleted_at = db.Column(db.DateTime(timezone=True), index=True)
+
+    # Images: pixel size and, from EXIF, when and with what the photo was taken.
+    width = db.Column(db.Integer)
+    height = db.Column(db.Integer)
+    taken_at = db.Column(db.DateTime)  # camera-local time, no zone
+    camera = db.Column(db.String(120))
+
     # File content lives in the database; loaded only when accessed.
     data = db.deferred(db.Column(db.LargeBinary, nullable=False))
+    # Small preview of an image (WebP), made at upload.
+    thumb = db.deferred(db.Column(db.LargeBinary))
 
     folder = db.relationship("Folder", back_populates="files")
     shares = db.relationship("Share", secondary=share_files, back_populates="files")
@@ -215,6 +282,11 @@ class File(OwnedMixin, db.Model):
             "is_encrypted": self.is_encrypted,
             "created_at": iso(self.created_at),
             "updated_at": iso(self.updated_at),
+            "deleted_at": iso(self.deleted_at),
+            "width": self.width,
+            "height": self.height,
+            "taken_at": self.taken_at.isoformat() if self.taken_at else None,
+            "camera": self.camera,
         }
 
 

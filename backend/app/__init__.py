@@ -25,19 +25,21 @@ def create_app(config_object=Config):
     from .auth import auth
     from .common import ApiError
     from .events import events
-    from .files import files_blueprint, shared
+    from .files import files_blueprint, shared, storage
     from .recipients import recipients
     from .routes import api
-    from .tasks import tasks
+    from .tasks import task_lists, tasks
 
     app.register_blueprint(api, url_prefix="/api")
     app.register_blueprint(auth, url_prefix="/api/auth")
     app.register_blueprint(recipients, url_prefix="/api/recipients")
     app.register_blueprint(tasks, url_prefix="/api/tasks")
+    app.register_blueprint(task_lists, url_prefix="/api/task-lists")
     app.register_blueprint(events, url_prefix="/api/events")
     app.register_blueprint(files_blueprint("drive"), url_prefix="/api/drive")
     app.register_blueprint(files_blueprint("photos"), url_prefix="/api/photos")
     app.register_blueprint(shared, url_prefix="/api/shared")
+    app.register_blueprint(storage, url_prefix="/api/storage")
 
     @app.errorhandler(ApiError)
     def handle_api_error(err):

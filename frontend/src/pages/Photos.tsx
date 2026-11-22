@@ -9,7 +9,7 @@ const OPTIONS: FileBrowserOptions = {
   view: 'grid',
   accept: 'image/*',
   encryption: false,
-  textDocuments: false,
+  documents: false,
 }
 
 export default function Photos() {

@@ -8,7 +8,7 @@ const OPTIONS: FileBrowserOptions = {
   folderNoun: 'folder',
   view: 'list',
   encryption: true,
-  textDocuments: true,
+  documents: true,
 }
 
 export default function Drive() {

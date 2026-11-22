@@ -2,20 +2,30 @@ import { useEffect, useState } from 'react'
 import type { FormEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { errorMessage, recipientsApi } from '../api'
-import type { FileItem, FilesApi, Recipient, ShareResult } from '../api'
+import type { FileItem, FilesApi, Folder, Recipient, ShareResult } from '../api'
 import { Modal } from './Modal'
 import { useAction } from './useAction'
 
 type Props = {
   api: FilesApi
   files: FileItem[]
+  /** Folders to share: every file inside them is included. */
+  folders?: Folder[]
   /** "document" or "photo" */
   noun: string
+  folderNoun?: string
   onClose: () => void
 }
 
 /** Pick recipients and email them a link to the selected files. */
-export default function ShareDialog({ api, files, noun, onClose }: Props) {
+export default function ShareDialog({
+  api,
+  files,
+  folders = [],
+  noun,
+  folderNoun = 'folder',
+  onClose,
+}: Props) {
   const [recipients, setRecipients] = useState<Recipient[] | null>(null)
   const [loadError, setLoadError] = useState('')
   const [chosen, setChosen] = useState<Set<number>>(new Set())
@@ -39,7 +49,11 @@ export default function ShareDialog({ api, files, noun, onClose }: Props) {
   }, [])
 
   const plural = files.length === 1 ? noun : `${noun}s`
-  const title = `Share ${files.length} ${plural}`
+  const counts = [
+    folders.length > 0 && `${folders.length} ${folderNoun}${folders.length === 1 ? '' : 's'}`,
+    files.length > 0 && `${files.length} ${plural}`,
+  ].filter(Boolean)
+  const title = `Share ${counts.join(' and ')}`
   const hasEncrypted = files.some((file) => file.is_encrypted)
   const allChosen = recipients !== null && recipients.length > 0 && chosen.size === recipients.length
 
@@ -60,6 +74,7 @@ export default function ShareDialog({ api, files, noun, onClose }: Props) {
       setResult(
         await api.share(
           files.map((file) => file.id),
+          folders.map((folder) => folder.id),
           [...chosen],
           message,
         ),
@@ -106,6 +121,11 @@ export default function ShareDialog({ api, files, noun, onClose }: Props) {
     <Modal title={title} onClose={onClose}>
       <form className="form" onSubmit={submit}>
         <ul className="share-files">
+          {folders.map((folder) => (
+            <li key={`folder-${folder.id}`}>
+              {folder.name} <small>(everything in this {folderNoun})</small>
+            </li>
+          ))}
           {files.map((file) => (
             <li key={file.id}>{file.name}</li>
           ))}
@@ -161,8 +181,10 @@ export default function ShareDialog({ api, files, noun, onClose }: Props) {
 
         <p className="hint">
           Each recipient gets an email with a link to view or download{' '}
-          {files.length === 1 ? `this ${noun}` : `these ${plural}`}. Anyone with the link can open
-          it.
+          {folders.length === 0 && files.length === 1 ? `this ${noun}` : `these ${noun}s`}. Anyone
+          with the link can open it.
+          {folders.length > 0 &&
+            ` A shared ${folderNoun} includes what is in it now, not what is added later.`}
         </p>
 
         {error && (

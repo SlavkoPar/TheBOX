@@ -124,7 +124,7 @@ export default function Shared() {
                         target="_blank"
                         rel="noopener noreferrer"
                       >
-                        <img src={sharedApi.contentUrl(token, file.id)} alt={file.name} loading="lazy" />
+                        <img src={sharedApi.thumbUrl(token, file.id)} alt={file.name} loading="lazy" />
                       </a>
                       <div className="photo-caption">
                         <span title={file.name}>{file.name}</span>

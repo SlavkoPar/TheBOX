@@ -4,7 +4,8 @@ import { MemoryRouter } from 'react-router-dom'
 import { vi } from 'vitest'
 import { AuthProvider } from '../auth'
 
-type Reply = { status?: number; body?: unknown }
+/** `body` is sent as JSON; `text` is sent as it is (file content). */
+type Reply = { status?: number; body?: unknown; text?: string }
 type Handler = Reply | ((body: unknown) => Reply)
 
 /**
@@ -18,7 +19,8 @@ export function mockApi(routes: Record<string, Handler>) {
     if (!handler) throw new Error(`Unexpected request: ${key}`)
 
     const sent = typeof init?.body === 'string' ? JSON.parse(init.body) : undefined
-    const { status = 200, body } = typeof handler === 'function' ? handler(sent) : handler
+    const { status = 200, body, text } = typeof handler === 'function' ? handler(sent) : handler
+    if (text !== undefined) return new Response(text, { status })
     return new Response(body === undefined ? null : JSON.stringify(body), {
       status,
       headers: { 'Content-Type': 'application/json' },

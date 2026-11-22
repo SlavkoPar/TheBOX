@@ -137,6 +137,30 @@ class Int(Field):
         return value
 
 
+class Choice(Field):
+    def __init__(self, options, **kwargs):
+        kwargs.setdefault("default", options[0])
+        super().__init__(**kwargs)
+        self.options = options
+
+    def parse(self, key, value):
+        if value is None or value == "":
+            return self.missing(key)
+        if value not in self.options:
+            raise ApiError(f"{self.name(key)} must be one of: {', '.join(self.options)}.")
+        return value
+
+
+def id_list(data, key, label):
+    """A list of integer ids from request JSON, without duplicates."""
+    values = data.get(key)
+    if not isinstance(values, list) or not all(
+        isinstance(v, int) and not isinstance(v, bool) for v in values
+    ):
+        raise ApiError(f"{label} must be a list of ids.")
+    return list(dict.fromkeys(values))
+
+
 class Date(Field):
     def parse(self, key, value):
         if value is None or value == "":
@@ -179,7 +203,18 @@ def apply_schema(schema, data, obj, *, partial=False):
 # --- CRUD -------------------------------------------------------------------
 
 
-def crud_blueprint(name, model, schema, *, order_by, validate=None, noun="Item"):
+def crud_blueprint(
+    name,
+    model,
+    schema,
+    *,
+    order_by,
+    validate=None,
+    extra=None,
+    after_commit=None,
+    list_filter=None,
+    noun="Item",
+):
     """Blueprint with the standard endpoints for a model owned by a user.
 
     GET /            list the user's rows
@@ -189,7 +224,11 @@ def crud_blueprint(name, model, schema, *, order_by, validate=None, noun="Item")
     PATCH /<id>      update only the fields sent
     DELETE /<id>     delete
 
-    `validate(obj)` may raise ApiError for rules that span several fields.
+    Hooks, all optional:
+      validate(obj)            rules that span several fields; may raise ApiError
+      extra(obj, data, partial) handle request keys that are not plain columns
+      after_commit(obj)        side effects once the row is saved (e.g. send email)
+      list_filter(query)       narrow the list using request.args
     """
     bp = Blueprint(name, __name__)
     not_found = f"{noun} not found."
@@ -198,7 +237,10 @@ def crud_blueprint(name, model, schema, *, order_by, validate=None, noun="Item")
         # no_autoflush: validation queries must see the database as it is, not
         # trigger a write of the half-validated object.
         with db.session.no_autoflush:
-            apply_schema(schema, json_body(), obj, partial=partial)
+            data = json_body()
+            apply_schema(schema, data, obj, partial=partial)
+            if extra:
+                extra(obj, data, partial)
             if validate:
                 validate(obj)
         db.session.add(obj)
@@ -207,12 +249,17 @@ def crud_blueprint(name, model, schema, *, order_by, validate=None, noun="Item")
         except IntegrityError:
             # A concurrent request got there first (e.g. the same unique value).
             raise ApiError(f"This {noun.lower()} conflicts with an existing one.", 409) from None
+        if after_commit:
+            after_commit(obj)
         return obj
 
     @bp.get("")
     @login_required
     def list_items():
-        query = db.select(model).where(model.user_id == current_user().id).order_by(*order_by())
+        query = db.select(model).where(model.user_id == current_user().id)
+        if list_filter:
+            query = list_filter(query)
+        query = query.order_by(*order_by())
         return jsonify(items=[obj.to_dict() for obj in db.session.scalars(query)])
 
     @bp.post("")
