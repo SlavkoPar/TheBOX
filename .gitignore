@@ -1,0 +1,3 @@
+# Environment files (may hold secrets); the example template stays tracked
+.env*
+
