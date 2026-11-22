@@ -70,7 +70,8 @@ class Config:
     # SMTP. If SMTP_HOST is empty, emails are written to the log instead of sent.
     SMTP_HOST = os.environ.get("SMTP_HOST", "")
     SMTP_PORT = int(os.environ.get("SMTP_PORT") or 587)
-    SMTP_USERNAME = os.environ.get("SMTP_USERNAME", "")
+    # SMTP_USER is accepted as another name for SMTP_USERNAME.
+    SMTP_USERNAME = os.environ.get("SMTP_USERNAME") or os.environ.get("SMTP_USER") or ""
     SMTP_PASSWORD = os.environ.get("SMTP_PASSWORD", "")
     SMTP_USE_TLS = _bool("SMTP_USE_TLS", True)  # STARTTLS (port 587)
     SMTP_USE_SSL = _bool("SMTP_USE_SSL", False)  # implicit TLS (port 465)
