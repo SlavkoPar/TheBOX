@@ -5,6 +5,7 @@ import pytest
 from app import auth as auth_module
 from app import events as events_module
 from app import files as files_module
+from app import packages as packages_module
 from app import reminders as reminders_module
 from app import create_app
 from app.config import Config
@@ -41,7 +42,13 @@ def client(app):
 def outbox(monkeypatch):
     """Emails the auth endpoints tried to send, as (to, subject, body) tuples."""
     sent = []
-    for module in (auth_module, events_module, files_module, reminders_module):
+    for module in (
+        auth_module,
+        events_module,
+        files_module,
+        packages_module,
+        reminders_module,
+    ):
         monkeypatch.setattr(
             module, "send_email", lambda to, subject, body: sent.append((to, subject, body))
         )

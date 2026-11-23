@@ -329,15 +329,68 @@ export const storageApi = {
   get: () => request<StorageInfo>('GET', '/storage'),
 }
 
+// --- Packages: files and folders from anywhere, behind one link, with a send history ----
+
+export type PackageInput = {
+  name: string
+  message: string
+  file_ids: number[]
+  folder_ids: number[]
+  recipient_ids: number[]
+}
+
+/** `path` is the folder the item is in, e.g. "Work / Reports"; "" for the top level. */
+export type PackageFile = FileItem & { app: FileApp; path: string }
+/** A folder in a package is live: the link shows what is in it now. */
+export type PackageFolder = Folder & { app: FileApp; path: string; file_count: number }
+
+/** One time the package was emailed. Names are as they were then. */
+export type PackageSend = {
+  id: number
+  sent_at: string
+  message: string
+  recipients: { name: string; email: string; sent: boolean }[]
+  items: { kind: 'file' | 'folder'; app: FileApp; name: string; path: string; file_count?: number }[]
+}
+
+export type Package = WithId & {
+  name: string
+  message: string
+  link: string
+  created_at: string
+  updated_at: string
+  expires_at: string | null
+  expired: boolean
+  /** files the link gives access to: those picked plus those inside the folders */
+  file_count: number
+  files: PackageFile[]
+  folders: PackageFolder[]
+  recipients: Recipient[]
+  /** newest first */
+  sends: PackageSend[]
+}
+
+export const packagesApi = {
+  ...collection<Package, PackageInput>('/packages'),
+  /** Email the link to the package's recipients; the send is added to its history. */
+  send: (id: number) => request<ShareResult & { package: Package }>('POST', `/packages/${id}/send`),
+}
+
 // --- Shared links (public, no sign-in) ----------------------------------------------
 
 export type SharedFile = Pick<
   FileItem,
   'id' | 'name' | 'mime_type' | 'size' | 'is_encrypted' | 'width' | 'height'
->
+> & {
+  /** in a package: the folder the file is in, starting at the folder that was packaged */
+  path?: string
+}
 
 export type SharedListing = {
-  app: FileApp
+  /** 'package': files of both apps, sent as a package */
+  app: FileApp | 'package'
+  /** name of the package */
+  name?: string
   shared_by: string
   message: string
   expires_at: string | null

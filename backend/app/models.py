@@ -314,3 +314,86 @@ class Share(OwnedMixin, db.Model):
             "files": [f.to_dict() for f in self.files],
             "recipients": [r.to_dict() for r in self.recipients],
         }
+
+
+# --- Packages -----------------------------------------------------------------
+
+package_files = db.Table(
+    "package_files",
+    db.Column("package_id", db.ForeignKey("packages.id", ondelete="CASCADE"), primary_key=True),
+    db.Column("file_id", db.ForeignKey("files.id", ondelete="CASCADE"), primary_key=True),
+)
+
+package_folders = db.Table(
+    "package_folders",
+    db.Column("package_id", db.ForeignKey("packages.id", ondelete="CASCADE"), primary_key=True),
+    db.Column("folder_id", db.ForeignKey("folders.id", ondelete="CASCADE"), primary_key=True),
+)
+
+package_recipients = db.Table(
+    "package_recipients",
+    db.Column("package_id", db.ForeignKey("packages.id", ondelete="CASCADE"), primary_key=True),
+    db.Column(
+        "recipient_id", db.ForeignKey("recipients.id", ondelete="CASCADE"), primary_key=True
+    ),
+)
+
+
+class Package(OwnedMixin, db.Model):
+    """A named set of files and folders, from any folder of Drive and Photos,
+    behind one secret link that is emailed to the package's recipients.
+
+    A folder in a package is live: the link shows what is in the folder now.
+    What was sent, and to whom, is kept in `sends`.
+    """
+
+    __tablename__ = "packages"
+
+    name = db.Column(db.String(255), nullable=False)
+    message = db.Column(db.Text, nullable=False, default="")
+    token = db.Column(db.String(64), nullable=False, unique=True, index=True)
+    updated_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    expires_at = db.Column(db.DateTime(timezone=True))
+
+    owner = db.relationship("User")
+    files = db.relationship("File", secondary=package_files, backref="packages")
+    folders = db.relationship("Folder", secondary=package_folders, backref="packages")
+    recipients = db.relationship("Recipient", secondary=package_recipients, backref="packages")
+    sends = db.relationship(
+        "PackageSend",
+        back_populates="package",
+        cascade="all, delete-orphan",
+        order_by="PackageSend.id.desc()",
+    )
+
+
+class PackageSend(db.Model):
+    """One time a package was emailed: a record of what went to whom.
+
+    Names are copied here, so the record stays true after the package, its
+    files or the recipients change.
+    """
+
+    __tablename__ = "package_sends"
+
+    id = db.Column(db.Integer, primary_key=True)
+    package_id = db.Column(
+        db.Integer, db.ForeignKey("packages.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    sent_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    message = db.Column(db.Text, nullable=False, default="")
+    # [{"name", "email", "sent": bool}]
+    recipients = db.Column(db.JSON, nullable=False, default=list)
+    # [{"kind": "file" | "folder", "app", "name", "path", "file_count" (folders)}]
+    items = db.Column(db.JSON, nullable=False, default=list)
+
+    package = db.relationship("Package", back_populates="sends")
+
+    def to_dict(self):
+        return {
+            "id": self.id,
+            "sent_at": iso(self.sent_at),
+            "message": self.message,
+            "recipients": self.recipients,
+            "items": self.items,
+        }

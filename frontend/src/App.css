@@ -22,6 +22,7 @@
 .app-photos { --app-color: #d9480f; }
 .app-tasks { --app-color: #2b8a3e; }
 .app-calendar { --app-color: #c2255c; }
+.app-packages { --app-color: #0c8599; }
 .app-recipients { --app-color: #7048e8; }
 
 @media (prefers-color-scheme: dark) {
@@ -29,6 +30,7 @@
   .app-photos { --app-color: #ff922b; }
   .app-tasks { --app-color: #69db7c; }
   .app-calendar { --app-color: #f783ac; }
+  .app-packages { --app-color: #3bc9db; }
   .app-recipients { --app-color: #b197fc; }
 }
 
@@ -1030,6 +1032,131 @@ label.check,
 
 .link-row input {
   flex: 1 1 240px;
+}
+
+/* ---------- Packages ---------- */
+
+.package-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.package-list > li {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}
+
+.package-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.package-head h3 {
+  margin: 0;
+  font-size: 18px;
+  overflow-wrap: anywhere;
+}
+
+.package-contents,
+.package-items ul,
+.picker-list,
+.package-history ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.package-contents li,
+.package-items li {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  padding: 3px 0;
+}
+
+.package-items {
+  margin: 0;
+  padding: 8px 12px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.package-items legend {
+  padding: 0 4px;
+  font-size: 14px;
+}
+
+.package-items ul {
+  align-self: stretch;
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.package-history summary {
+  cursor: pointer;
+  color: var(--text-h);
+}
+
+.package-history ul {
+  margin-top: 8px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.package-history li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 12px;
+  border-left: 3px solid var(--border);
+  overflow-wrap: anywhere;
+}
+
+.item-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.picker-path {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.picker-list {
+  max-height: 320px;
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+}
+
+.picker-list li {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 7px 12px;
+}
+
+.picker-list li + li {
+  border-top: 1px solid var(--border);
 }
 
 /* ---------- Editors and previews ---------- */

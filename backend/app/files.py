@@ -20,11 +20,11 @@ from flask import Blueprint, current_app, jsonify, request, send_file
 
 from . import crypto
 from .auth import current_user, login_required
-from .common import ApiError, Str, as_utc, get_owned, id_list, json_body
+from .common import ApiError, Str, as_utc, get_owned, id_list, iso, json_body
 from .extensions import db
 from .imaging import THUMB_TYPE, describe_image
 from .mail import send_email
-from .models import File, Folder, Recipient, Share, utcnow
+from .models import File, Folder, Package, Recipient, Share, utcnow
 from .previews import PreviewError, build_preview
 
 FILE_APP_OPTIONS = {
@@ -97,6 +97,38 @@ def path_of(folder):
         names.append(folder.name)
         folder = folder.parent
     return " / ".join(reversed(names))
+
+
+def files_inside(folder):
+    """Every file in a folder and its subfolders, skipping trashed ones."""
+    found = [f for f in folder.files if f.deleted_at is None]
+    for child in folder.children:
+        if child.deleted_at is None:
+            found += files_inside(child)
+    return found
+
+
+def package_entries(package):
+    """Files a package gives access to, as (file, path) in display order.
+
+    The files picked one by one have path ''. A folder is live: its entries are
+    the files in it (and its subfolders) now, with the path from that folder
+    down, e.g. 'Reports / 2024'.
+    """
+    entries = {file.id: (file, "") for file in package.files if is_active(file)}
+
+    def walk(folder, path):
+        for file in folder.files:
+            if file.deleted_at is None:
+                entries.setdefault(file.id, (file, path))
+        for child in folder.children:
+            if child.deleted_at is None:
+                walk(child, f"{path} / {child.name}")
+
+    for folder in package.folders:
+        if not in_trash(folder):
+            walk(folder, folder.name)
+    return sorted(entries.values(), key=lambda e: (e[1].lower(), e[0].name.lower(), e[0].id))
 
 
 def storage_used(user_id):
@@ -235,14 +267,6 @@ def files_blueprint(app_name):
 
     def own(model):
         return db.select(model).where(model.user_id == current_user().id, model.app == app_name)
-
-    def files_inside(folder):
-        """Every file in a folder and its subfolders, skipping trashed ones."""
-        found = [f for f in folder.files if f.deleted_at is None]
-        for child in folder.children:
-            if child.deleted_at is None:
-                found += files_inside(child)
-        return found
 
     # --- Browsing ---
 
@@ -701,16 +725,26 @@ shared = Blueprint("shared", __name__)
 
 
 def _share_or_404(token):
-    share = db.session.scalar(db.select(Share).where(Share.token == token))
+    """The shared link or the package behind a token."""
+    share = db.session.scalar(db.select(Share).where(Share.token == token)) or db.session.scalar(
+        db.select(Package).where(Package.token == token)
+    )
     if share is None or (share.expires_at and as_utc(share.expires_at) < utcnow()):
         raise ApiError("This link is not valid or has expired.", 404)
     return share
 
 
+def _shared_entries(share):
+    """(file, path) for every file the link gives access to."""
+    if isinstance(share, Package):
+        return package_entries(share)
+    files = sorted(share.files, key=lambda f: f.name.lower())
+    return [(file, "") for file in files if is_active(file)]
+
+
 def _shared_file(token, file_id):
-    share = _share_or_404(token)
-    for file in share.files:
-        if file.id == file_id and is_active(file):
+    for file, _ in _shared_entries(_share_or_404(token)):
+        if file.id == file_id:
             return file
     raise ApiError("File not found.", 404)
 
@@ -718,23 +752,26 @@ def _shared_file(token, file_id):
 @shared.get("/<token>")
 def view_share(token):
     share = _share_or_404(token)
+    is_package = isinstance(share, Package)
     return jsonify(
-        app=share.app,
+        # "package": files of both apps, some of them inside folders (`path`).
+        app="package" if is_package else share.app,
+        name=share.name if is_package else "",
         shared_by=share.owner.email,
         message=share.message,
-        expires_at=share.to_dict()["expires_at"],
+        expires_at=iso(share.expires_at),
         files=[
             {
                 "id": f.id,
                 "name": f.name,
+                "path": path,
                 "mime_type": f.mime_type,
                 "size": f.size,
                 "is_encrypted": f.is_encrypted,
                 "width": f.width,
                 "height": f.height,
             }
-            for f in sorted(share.files, key=lambda f: f.name.lower())
-            if is_active(f)
+            for f, path in _shared_entries(share)
         ],
     )
 

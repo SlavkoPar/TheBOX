@@ -24,7 +24,7 @@ describe('App', () => {
     expect(await screen.findByText('Hello!')).toBeInTheDocument()
     // One tile per app
     const tiles = screen.getByRole('navigation', { name: 'Your apps' })
-    expect(tiles.querySelectorAll('a')).toHaveLength(5)
+    expect(tiles.querySelectorAll('a')).toHaveLength(6)
   })
 
   it('treats an unreachable server as signed out', async () => {

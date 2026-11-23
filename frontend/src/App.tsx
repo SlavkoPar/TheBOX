@@ -7,6 +7,7 @@ import Confirm from './pages/Confirm'
 import Drive from './pages/Drive'
 import Home from './pages/Home'
 import Login from './pages/Login'
+import Packages from './pages/Packages'
 import Photos from './pages/Photos'
 import Recipients from './pages/Recipients'
 import Register from './pages/Register'
@@ -49,6 +50,7 @@ export default function App() {
         <Route path="/photos" element={<Photos />} />
         <Route path="/tasks" element={<Tasks />} />
         <Route path="/calendar" element={<Calendar />} />
+        <Route path="/packages" element={<Packages />} />
         <Route path="/recipients" element={<Recipients />} />
       </Route>
 

@@ -1,9 +1,8 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import type { FormEvent } from 'react'
-import { Link } from 'react-router-dom'
-import { errorMessage, recipientsApi } from '../api'
-import type { FileItem, FilesApi, Folder, Recipient, ShareResult } from '../api'
+import type { FileItem, FilesApi, Folder, ShareResult } from '../api'
 import { Modal } from './Modal'
+import RecipientPicker, { useRecipients } from './RecipientPicker'
 import { useAction } from './useAction'
 
 type Props = {
@@ -26,27 +25,11 @@ export default function ShareDialog({
   folderNoun = 'folder',
   onClose,
 }: Props) {
-  const [recipients, setRecipients] = useState<Recipient[] | null>(null)
-  const [loadError, setLoadError] = useState('')
+  const { recipients, loadError } = useRecipients()
   const [chosen, setChosen] = useState<Set<number>>(new Set())
   const [message, setMessage] = useState('')
   const [result, setResult] = useState<ShareResult | null>(null)
   const { busy, error, setError, run } = useAction()
-
-  useEffect(() => {
-    let cancelled = false
-    recipientsApi
-      .list()
-      .then((items) => {
-        if (!cancelled) setRecipients(items)
-      })
-      .catch((err) => {
-        if (!cancelled) setLoadError(errorMessage(err))
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
 
   const plural = files.length === 1 ? noun : `${noun}s`
   const counts = [
@@ -55,14 +38,6 @@ export default function ShareDialog({
   ].filter(Boolean)
   const title = `Share ${counts.join(' and ')}`
   const hasEncrypted = files.some((file) => file.is_encrypted)
-  const allChosen = recipients !== null && recipients.length > 0 && chosen.size === recipients.length
-
-  function toggle(id: number) {
-    const next = new Set(chosen)
-    if (next.has(id)) next.delete(id)
-    else next.add(id)
-    setChosen(next)
-  }
 
   async function submit(event: FormEvent) {
     event.preventDefault()
@@ -131,48 +106,12 @@ export default function ShareDialog({
           ))}
         </ul>
 
-        {loadError && (
-          <p className="error" role="alert">
-            {loadError}
-          </p>
-        )}
-
-        {recipients === null && !loadError && <p>Loading recipients…</p>}
-
-        {recipients !== null && recipients.length === 0 && (
-          <p className="empty">
-            You have no recipients yet. <Link to="/recipients">Add recipients</Link> first.
-          </p>
-        )}
-
-        {recipients !== null && recipients.length > 0 && (
-          <fieldset className="recipient-picker">
-            <legend>Send to</legend>
-            <label className="check">
-              <input
-                type="checkbox"
-                checked={allChosen}
-                onChange={() =>
-                  setChosen(allChosen ? new Set() : new Set(recipients.map((r) => r.id)))
-                }
-              />
-              <strong>Everyone</strong>
-            </label>
-            {recipients.map((recipient) => (
-              <label className="check" key={recipient.id}>
-                <input
-                  type="checkbox"
-                  checked={chosen.has(recipient.id)}
-                  onChange={() => toggle(recipient.id)}
-                />
-                <span>
-                  {`${recipient.first_name} ${recipient.last_name}`.trim()}{' '}
-                  <small>{recipient.email}</small>
-                </span>
-              </label>
-            ))}
-          </fieldset>
-        )}
+        <RecipientPicker
+          recipients={recipients}
+          loadError={loadError}
+          chosen={chosen}
+          onChange={setChosen}
+        />
 
         <label>
           Message (optional)

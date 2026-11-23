@@ -18,7 +18,7 @@ const VIEWABLE = [
   'text/plain',
 ]
 
-/** Public page behind an emailed link: view or download the shared files. No sign-in. */
+/** Public page behind an emailed link (a share or a package): view or download the files. No sign-in. */
 export default function Shared() {
   const { token = '' } = useParams()
   const [listing, setListing] = useState<SharedListing | null>(null)
@@ -41,7 +41,9 @@ export default function Shared() {
   }, [token])
 
   const isPhotos = listing?.app === 'photos'
-  const noun = isPhotos ? 'photo' : 'document'
+  // A package has a name and holds files of both apps, some of them in folders.
+  const isPackage = listing?.app === 'package'
+  const noun = isPhotos ? 'photo' : isPackage ? 'file' : 'document'
 
   function actions(file: SharedFile) {
     if (file.is_encrypted) {
@@ -98,10 +100,12 @@ export default function Shared() {
               <div className="page-header">
                 <div>
                   <h2>
-                    {listing.files.length} {listing.files.length === 1 ? noun : `${noun}s`} shared
-                    with you
+                    {isPackage && listing.name
+                      ? listing.name
+                      : `${listing.files.length} ${listing.files.length === 1 ? noun : `${noun}s`} shared with you`}
                   </h2>
                   <p className="hint">
+                    {isPackage && `${listing.files.length} ${listing.files.length === 1 ? noun : `${noun}s`} · `}
                     From {listing.shared_by}
                     {listing.expires_at && ` · link works until ${formatDate(listing.expires_at)}`}
                   </p>
@@ -140,13 +144,14 @@ export default function Shared() {
                   ))}
                 </ul>
               ) : (
-                <ul className="shared-list" aria-label="Shared documents">
+                <ul className="shared-list" aria-label={isPackage ? 'Shared files' : 'Shared documents'}>
                   {listing.files.map((file) => (
                     <li key={file.id}>
                       <span className="item-name">
                         <Icon name={file.is_encrypted ? 'lock' : 'file'} /> {file.name}
                       </span>
                       <small>
+                        {file.path && `${file.path} · `}
                         {formatBytes(file.size)}
                         {file.is_encrypted && ' · encrypted'}
                       </small>

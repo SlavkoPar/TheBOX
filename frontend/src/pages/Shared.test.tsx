@@ -114,6 +114,34 @@ describe('Shared', () => {
     )
   })
 
+  it('shows a package by its name, with the folder each file is in', async () => {
+    mockApi({
+      'GET /api/shared/tok': {
+        body: {
+          ...DOCS,
+          app: 'package',
+          name: 'For the board',
+          files: [
+            { id: 30, name: 'top.txt', path: '', mime_type: 'text/plain', size: 15, is_encrypted: false, ...NO_SIZE },
+            { id: 31, name: 'cat.png', path: 'Trip / Day 1', mime_type: 'image/png', size: 2048, is_encrypted: false, ...NO_SIZE },
+          ],
+        },
+      },
+    })
+    renderShared()
+
+    expect(await screen.findByRole('heading', { name: 'For the board' })).toBeInTheDocument()
+    expect(screen.getByText(/2 files · From user@example.com/)).toBeInTheDocument()
+
+    const rows = within(screen.getByRole('list', { name: 'Shared files' })).getAllByRole('listitem')
+    expect(rows[0]).toHaveTextContent('top.txt15 B')
+    expect(rows[1]).toHaveTextContent('cat.pngTrip / Day 1 · 2.0 KB')
+    expect(screen.getByRole('link', { name: 'Download cat.png' })).toHaveAttribute(
+      'href',
+      '/api/shared/tok/files/31?download=1',
+    )
+  })
+
   it('explains when the link is invalid or expired', async () => {
     mockApi({
       'GET /api/shared/bad': { status: 404, body: { error: 'This link is not valid or has expired.' } },

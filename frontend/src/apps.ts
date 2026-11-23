@@ -14,6 +14,7 @@ export const APPS: AppInfo[] = [
   { id: 'photos', name: 'Photos', path: '/photos', icon: 'photos', description: 'Albums and pictures' },
   { id: 'tasks', name: 'Tasks', path: '/tasks', icon: 'tasks', description: 'To-do list with due dates' },
   { id: 'calendar', name: 'Calendar', path: '/calendar', icon: 'calendar', description: 'Events and email reminders' },
+  { id: 'packages', name: 'Packages', path: '/packages', icon: 'packages', description: 'Files sent to recipients' },
   { id: 'recipients', name: 'Recipients', path: '/recipients', icon: 'recipients', description: 'People you share with' },
 ]
 
