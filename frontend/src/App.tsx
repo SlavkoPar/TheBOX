@@ -13,6 +13,7 @@ import Recipients from './pages/Recipients'
 import Register from './pages/Register'
 import Shared from './pages/Shared'
 import Tasks from './pages/Tasks'
+import Users from './pages/Users'
 
 /** Signed-in area: redirects to the sign-in page when there is no user. */
 function RequireAuth() {
@@ -52,6 +53,7 @@ export default function App() {
         <Route path="/calendar" element={<Calendar />} />
         <Route path="/packages" element={<Packages />} />
         <Route path="/recipients" element={<Recipients />} />
+        <Route path="/users" element={<Users />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

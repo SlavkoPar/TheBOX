@@ -52,6 +52,13 @@ class Config:
     FRONTEND_URL = _frontend_url()
     CONFIRM_TOKEN_MAX_AGE = int(os.environ.get("CONFIRM_TOKEN_MAX_AGE") or 60 * 60 * 24)
 
+    # Email addresses (comma-separated) of the administrators, who can see all registered users.
+    ADMIN_EMAILS = [
+        email.strip().lower()
+        for email in os.environ.get("ADMIN_EMAILS", "").split(",")
+        if email.strip()
+    ]
+
     # Folder with the built frontend (frontend/dist). When set, Flask serves it,
     # so the app and the API share one origin. Unset in local development.
     FRONTEND_DIST = os.environ.get("FRONTEND_DIST", "")

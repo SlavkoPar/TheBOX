@@ -24,6 +24,7 @@
 .app-calendar { --app-color: #c2255c; }
 .app-packages { --app-color: #0c8599; }
 .app-recipients { --app-color: #7048e8; }
+.app-users { --app-color: #c92a2a; }
 
 @media (prefers-color-scheme: dark) {
   .app-drive { --app-color: #74a5ff; }
@@ -32,6 +33,7 @@
   .app-calendar { --app-color: #f783ac; }
   .app-packages { --app-color: #3bc9db; }
   .app-recipients { --app-color: #b197fc; }
+  .app-users { --app-color: #ff8787; }
 }
 
 /* ---------- Basics ---------- */
@@ -1619,4 +1621,14 @@ label.check,
   min-width: 0;
   border: 1px solid var(--border);
   border-radius: var(--radius);
+}
+
+.card-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.card-badges .badge {
+  margin-left: 0;
 }

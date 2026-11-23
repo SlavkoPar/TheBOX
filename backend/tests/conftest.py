@@ -22,6 +22,7 @@ class SqliteConfig(Config):
     SMTP_HOST = ""
     FRONTEND_URL = "http://frontend.test"
     FRONTEND_DIST = ""
+    ADMIN_EMAILS = ["admin@example.com"]
 
 
 @pytest.fixture

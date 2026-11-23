@@ -1,5 +1,5 @@
 import { Link } from 'react-router-dom'
-import { APPS } from '../apps'
+import { appsFor } from '../apps'
 import { useAuth } from '../auth'
 import DemoFetch from '../components/DemoFetch'
 import { Icon } from '../common/icons'
@@ -19,7 +19,7 @@ export default function Home() {
       </div>
 
       <nav className="app-tiles" aria-label="Your apps">
-        {APPS.map((app) => (
+        {appsFor(user).map((app) => (
           <Link key={app.id} to={app.path} className={`app-tile app-${app.id}`}>
             <span className="app-icon">
               <Icon name={app.icon} size={28} />

@@ -30,6 +30,10 @@ services:
       # FRONTEND_URL is not set: it defaults to the service's public Render URL.
       # Set it in the dashboard if you add a custom domain.
 
+      # Comma-separated email addresses of the administrators (they see all registered users).
+      - key: ADMIN_EMAILS
+        sync: false
+
       # SMTP settings: Render asks for these when the Blueprint is first created.
       - key: SMTP_HOST
         sync: false

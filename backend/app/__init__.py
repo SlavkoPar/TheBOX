@@ -22,6 +22,7 @@ def create_app(config_object=Config):
 
     from . import models  # noqa: F401  (register models for migrations)
     from . import reminders
+    from .admin import admin
     from .auth import auth
     from .common import ApiError
     from .events import events
@@ -33,6 +34,7 @@ def create_app(config_object=Config):
 
     app.register_blueprint(api, url_prefix="/api")
     app.register_blueprint(auth, url_prefix="/api/auth")
+    app.register_blueprint(admin, url_prefix="/api/admin")
     app.register_blueprint(recipients, url_prefix="/api/recipients")
     app.register_blueprint(tasks, url_prefix="/api/tasks")
     app.register_blueprint(task_lists, url_prefix="/api/task-lists")

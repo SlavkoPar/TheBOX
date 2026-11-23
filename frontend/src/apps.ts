@@ -1,3 +1,4 @@
+import type { User } from './api'
 import type { IconName } from './common/icons'
 
 export type AppInfo = {
@@ -6,6 +7,8 @@ export type AppInfo = {
   path: string
   icon: IconName
   description: string
+  /** shown to administrators only */
+  adminOnly?: boolean
 }
 
 /** The apps, in menu order. The apps menu, the home page and the header all read this list. */
@@ -16,7 +19,13 @@ export const APPS: AppInfo[] = [
   { id: 'calendar', name: 'Calendar', path: '/calendar', icon: 'calendar', description: 'Events and email reminders' },
   { id: 'packages', name: 'Packages', path: '/packages', icon: 'packages', description: 'Files sent to recipients' },
   { id: 'recipients', name: 'Recipients', path: '/recipients', icon: 'recipients', description: 'People you share with' },
+  { id: 'users', name: 'Users', path: '/users', icon: 'user', description: 'Everyone who registered', adminOnly: true },
 ]
+
+/** The apps this user gets in the menu and on the home page. */
+export function appsFor(user: User | null): AppInfo[] {
+  return APPS.filter((app) => !app.adminOnly || user?.is_admin)
+}
 
 export function appForPath(pathname: string): AppInfo | undefined {
   return APPS.find((app) => pathname === app.path || pathname.startsWith(`${app.path}/`))

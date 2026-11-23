@@ -80,6 +80,20 @@ export type User = {
   id: number
   email: string
   is_confirmed: boolean
+  /** an administrator: sees the Users page */
+  is_admin?: boolean
+}
+
+/** A registered user, as an administrator sees it. */
+export type AdminUser = User & {
+  created_at: string
+  confirmed_at: string | null
+  file_count: number
+  storage_used: number
+}
+
+export const adminApi = {
+  users: () => request<{ items: AdminUser[] }>('GET', '/admin/users').then((data) => data.items),
 }
 
 type Message = { message: string }

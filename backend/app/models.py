@@ -1,5 +1,6 @@
 from datetime import datetime, timezone
 
+from flask import current_app
 from werkzeug.security import check_password_hash, generate_password_hash
 
 from .extensions import db
@@ -33,8 +34,18 @@ class User(db.Model):
     def check_password(self, password):
         return check_password_hash(self.password_hash, password)
 
+    @property
+    def is_admin(self):
+        """Confirmed, and listed in ADMIN_EMAILS: an unconfirmed address proves nothing."""
+        return bool(self.is_confirmed) and self.email in current_app.config["ADMIN_EMAILS"]
+
     def to_dict(self):
-        return {"id": self.id, "email": self.email, "is_confirmed": self.is_confirmed}
+        return {
+            "id": self.id,
+            "email": self.email,
+            "is_confirmed": self.is_confirmed,
+            "is_admin": self.is_admin,
+        }
 
 
 class OwnedMixin:

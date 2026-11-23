@@ -2,7 +2,7 @@ import { useEffect, useId, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { errorMessage } from '../api'
-import { APPS, appForPath } from '../apps'
+import { appForPath, appsFor } from '../apps'
 import { useAuth } from '../auth'
 import { Icon } from '../common/icons'
 import type { IconName } from '../common/icons'
@@ -59,13 +59,14 @@ function HeaderMenu({ label, icon, children }: MenuProps) {
 
 function AppsMenu() {
   const { pathname } = useLocation()
+  const { user } = useAuth()
   const current = appForPath(pathname)
 
   return (
     <HeaderMenu label="Apps" icon="grid">
       {(close) => (
         <nav className="apps-grid" aria-label="Apps">
-          {APPS.map((app) => (
+          {appsFor(user).map((app) => (
             <Link
               key={app.id}
               to={app.path}
