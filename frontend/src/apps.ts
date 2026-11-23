@@ -1,4 +1,4 @@
-import type { User } from './api'
+import type { Summary, User } from './api'
 import type { IconName } from './common/icons'
 
 export type AppInfo = {
@@ -29,4 +29,31 @@ export function appsFor(user: User | null): AppInfo[] {
 
 export function appForPath(pathname: string): AppInfo | undefined {
   return APPS.find((app) => pathname === app.path || pathname.startsWith(`${app.path}/`))
+}
+
+const plural = (n: number, one: string, many = `${one}s`) => `${n} ${n === 1 ? one : many}`
+
+/** What an app holds, in words ("3 folders · 12 documents"); '' while it is not known. */
+export function countsFor(appId: string, summary: Summary | null): string {
+  const counts = summary?.[appId]
+  if (!counts) return ''
+  const n = (key: string) => counts[key] ?? 0
+  switch (appId) {
+    case 'drive':
+      return `${plural(n('folders'), 'folder')} · ${plural(n('files'), 'document')}`
+    case 'photos':
+      return `${plural(n('folders'), 'album')} · ${plural(n('files'), 'photo')}`
+    case 'tasks':
+      return `${n('open')} open · ${n('done')} done`
+    case 'calendar':
+      return plural(n('events'), 'event')
+    case 'packages':
+      return plural(n('packages'), 'package')
+    case 'recipients':
+      return plural(n('recipients'), 'recipient')
+    case 'users':
+      return plural(n('users'), 'user')
+    default:
+      return ''
+  }
 }

@@ -1,0 +1,2 @@
+- Make whole site Compact (font-size, margins, paddings)
+- At the Home page present number of items (Foders, files) for each app

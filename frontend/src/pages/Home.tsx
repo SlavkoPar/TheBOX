@@ -1,11 +1,29 @@
+import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { appsFor } from '../apps'
+import { summaryApi } from '../api'
+import type { Summary } from '../api'
+import { appsFor, countsFor } from '../apps'
 import { useAuth } from '../auth'
 import DemoFetch from '../components/DemoFetch'
 import { Icon } from '../common/icons'
 
 export default function Home() {
   const { user } = useAuth()
+  const [summary, setSummary] = useState<Summary | null>(null)
+
+  useEffect(() => {
+    let cancelled = false
+    // The counts are a nicety: if they cannot be loaded, the tiles work without them.
+    summaryApi.get().then(
+      (data) => {
+        if (!cancelled) setSummary(data)
+      },
+      () => undefined,
+    )
+    return () => {
+      cancelled = true
+    }
+  }, [])
 
   return (
     <div className="page">
@@ -26,6 +44,7 @@ export default function Home() {
             </span>
             <strong>{app.name}</strong>
             <small>{app.description}</small>
+            {countsFor(app.id, summary) && <span className="app-counts">{countsFor(app.id, summary)}</span>}
           </Link>
         ))}
       </nav>

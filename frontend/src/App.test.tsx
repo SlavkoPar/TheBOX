@@ -27,6 +27,36 @@ describe('App', () => {
     expect(tiles.querySelectorAll('a')).toHaveLength(6)
   })
 
+  it('shows on each tile how many items the app holds', async () => {
+    mockApi({
+      'GET /api/auth/me': { body: { user: { ...USER, is_admin: true } } },
+      'GET /api/demo': { body: DEMO },
+      'GET /api/summary': {
+        body: {
+          drive: { folders: 3, files: 1 },
+          photos: { folders: 1, files: 40 },
+          tasks: { open: 5, done: 2 },
+          calendar: { events: 0 },
+          packages: { packages: 1 },
+          recipients: { recipients: 6 },
+          users: { users: 9 },
+        },
+      },
+    })
+    renderApp(<App />, '/')
+
+    const tile = (name: RegExp) => screen.getByRole('link', { name })
+    expect(await screen.findByText('3 folders · 1 document')).toBeInTheDocument()
+    expect(tile(/^Drive/)).toHaveTextContent('3 folders · 1 document')
+    expect(tile(/^Photos/)).toHaveTextContent('1 album · 40 photos')
+    expect(tile(/^Tasks/)).toHaveTextContent('5 open · 2 done')
+    expect(tile(/^Calendar/)).toHaveTextContent('0 events')
+    expect(tile(/^Packages/)).toHaveTextContent('1 package')
+    expect(tile(/^Recipients/)).toHaveTextContent('6 recipients')
+    // Administrators also get the Users tile
+    expect(tile(/^Users/)).toHaveTextContent('9 users')
+  })
+
   it('treats an unreachable server as signed out', async () => {
     mockApi({}) // every request throws
     renderApp(<App />, '/')

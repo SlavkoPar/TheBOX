@@ -92,6 +92,13 @@ export type AdminUser = User & {
   storage_used: number
 }
 
+/** How many items the signed-in user has in each app (the key is the app's id). */
+export type Summary = Partial<Record<string, Record<string, number>>>
+
+export const summaryApi = {
+  get: () => request<Summary>('GET', '/summary'),
+}
+
 export const adminApi = {
   users: () => request<{ items: AdminUser[] }>('GET', '/admin/users').then((data) => data.items),
 }
