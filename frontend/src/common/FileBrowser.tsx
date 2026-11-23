@@ -756,7 +756,6 @@ export default function FileBrowser({ options }: { options: FileBrowserOptions }
 
       {dialog?.kind === 'share' && (
         <ShareDialog
-          api={api}
           files={dialog.files}
           folders={dialog.folders}
           noun={noun}

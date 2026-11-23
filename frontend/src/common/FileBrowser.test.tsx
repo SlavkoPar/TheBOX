@@ -183,8 +183,8 @@ describe('FileBrowser (Drive): sharing', () => {
       ...ME,
       'GET /api/drive/items': { body: TOP },
       'GET /api/recipients': { body: { items: RECIPIENTS } },
-      'POST /api/drive/shares': {
-        status: 201,
+      'POST /api/packages': { status: 201, body: { id: 7 } },
+      'POST /api/packages/7/send': {
         body: { link: 'http://localhost/shared/tok', sent: ['ana@example.com'], failed: [] },
       },
     })
@@ -208,12 +208,16 @@ describe('FileBrowser (Drive): sharing', () => {
     expect(within(dialog).getByLabelText('Link')).toHaveValue('http://localhost/shared/tok')
     // One of the shared documents is encrypted: remind the sender about the password
     expect(within(dialog).getByText(/Encrypted documents open only with their password/)).toBeInTheDocument()
-    expect(lastBody(fetchMock, 'POST /api/drive/shares')).toEqual({
+    // What is shared is saved as a package, then sent
+    expect(within(dialog).getByRole('link', { name: 'Packages' })).toHaveAttribute('href', '/packages')
+    expect(lastBody(fetchMock, 'POST /api/packages')).toEqual({
+      name: 'report.pdf and 1 more',
+      message: 'For Monday',
       file_ids: [10, 11],
       folder_ids: [],
       recipient_ids: [1],
-      message: 'For Monday',
     })
+    expect(calls(fetchMock, 'POST')).toEqual(['/api/packages', '/api/packages/7/send'])
   })
 
   it('shares a whole folder', async () => {
@@ -221,8 +225,8 @@ describe('FileBrowser (Drive): sharing', () => {
       ...ME,
       'GET /api/drive/items': { body: TOP },
       'GET /api/recipients': { body: { items: RECIPIENTS } },
-      'POST /api/drive/shares': {
-        status: 201,
+      'POST /api/packages': { status: 201, body: { id: 7 } },
+      'POST /api/packages/7/send': {
         body: { link: 'http://localhost/shared/tok', sent: ['bo@example.com'], failed: [] },
       },
     })
@@ -235,16 +239,19 @@ describe('FileBrowser (Drive): sharing', () => {
 
     const dialog = screen.getByRole('dialog', { name: 'Share 1 folder and 1 document' })
     expect(within(dialog).getByText(/everything in this folder/)).toBeInTheDocument()
-    expect(within(dialog).getByText(/not what is added later/)).toBeInTheDocument()
+    expect(within(dialog).getByText(/including what is added later/)).toBeInTheDocument()
+    await user.clear(within(dialog).getByLabelText('Package name'))
+    await user.type(within(dialog).getByLabelText('Package name'), 'Work files')
     await user.click(await within(dialog).findByRole('checkbox', { name: /Bo/ }))
     await user.click(within(dialog).getByRole('button', { name: 'Send link' }))
 
     await within(dialog).findByRole('status')
-    expect(lastBody(fetchMock, 'POST /api/drive/shares')).toEqual({
+    expect(lastBody(fetchMock, 'POST /api/packages')).toEqual({
+      name: 'Work files',
+      message: '',
       file_ids: [10],
       folder_ids: [3],
       recipient_ids: [2],
-      message: '',
     })
   })
 
@@ -253,8 +260,8 @@ describe('FileBrowser (Drive): sharing', () => {
       ...ME,
       'GET /api/drive/items': { body: TOP },
       'GET /api/recipients': { body: { items: RECIPIENTS } },
-      'POST /api/drive/shares': {
-        status: 201,
+      'POST /api/packages': { status: 201, body: { id: 7 } },
+      'POST /api/packages/7/send': {
         body: { link: 'http://localhost/shared/tok', sent: ['ana@example.com'], failed: ['bo@example.com'] },
       },
     })
@@ -708,8 +715,8 @@ describe('FileBrowser (Photos)', () => {
       ...ME,
       'GET /api/photos/items': { body: PHOTOS },
       'GET /api/recipients': { body: { items: RECIPIENTS } },
-      'POST /api/photos/shares': {
-        status: 201,
+      'POST /api/packages': { status: 201, body: { id: 7 } },
+      'POST /api/packages/7/send': {
         body: { link: 'http://localhost/shared/tok', sent: ['bo@example.com'], failed: [] },
       },
     })
@@ -734,11 +741,12 @@ describe('FileBrowser (Photos)', () => {
     await user.click(within(dialog).getByRole('button', { name: 'Send link' }))
 
     expect(await within(dialog).findByRole('status')).toHaveTextContent('bo@example.com')
-    expect(lastBody(fetchMock, 'POST /api/photos/shares')).toEqual({
+    expect(lastBody(fetchMock, 'POST /api/packages')).toEqual({
+      name: 'beach.jpg',
+      message: '',
       file_ids: [20],
       folder_ids: [],
       recipient_ids: [2],
-      message: '',
     })
   })
 

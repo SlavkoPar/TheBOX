@@ -1,6 +1,7 @@
 // Dialogs of the file browser: Office preview, move to folder, shared links, slideshow.
 
 import { useCallback, useEffect, useMemo, useState } from 'react'
+import { Link } from 'react-router-dom'
 import { errorMessage } from '../api'
 import type { FileItem, FilesApi, Folder, Preview, SharedLink } from '../api'
 import { FormModal, Modal } from './Modal'
@@ -252,11 +253,13 @@ export function SharedLinksDialog({ api, noun, onClose }: { api: FilesApi; noun:
             {error || action.error}
           </p>
         )}
+        <p className="hint">
+          What you share now is saved as a package: find it in <Link to="/packages">Packages</Link>.
+          Links sent before that are listed here.
+        </p>
         {!links && !error && <p>Loading…</p>}
         {links?.length === 0 && (
-          <p className="empty">
-            Nothing is shared. Select {noun}s and press Share to email someone a link.
-          </p>
+          <p className="empty">No earlier links.</p>
         )}
         <ul className="link-list">
           {links?.map((link) => (

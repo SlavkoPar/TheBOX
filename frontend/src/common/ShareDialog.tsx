@@ -1,14 +1,15 @@
 import { useState } from 'react'
 import type { FormEvent } from 'react'
-import type { FileItem, FilesApi, Folder, ShareResult } from '../api'
+import { Link } from 'react-router-dom'
+import { packagesApi } from '../api'
+import type { FileItem, Folder, ShareResult } from '../api'
 import { Modal } from './Modal'
 import RecipientPicker, { useRecipients } from './RecipientPicker'
 import { useAction } from './useAction'
 
 type Props = {
-  api: FilesApi
   files: FileItem[]
-  /** Folders to share: every file inside them is included. */
+  /** Folders to share: everything inside them is included. */
   folders?: Folder[]
   /** "document" or "photo" */
   noun: string
@@ -16,9 +17,13 @@ type Props = {
   onClose: () => void
 }
 
-/** Pick recipients and email them a link to the selected files. */
+/**
+ * Pick recipients and email them a link to the selected files.
+ *
+ * What is shared is saved as a package, so it shows up in Packages with its
+ * link and history, and can be edited or sent again from there.
+ */
 export default function ShareDialog({
-  api,
   files,
   folders = [],
   noun,
@@ -28,6 +33,13 @@ export default function ShareDialog({
   const { recipients, loadError } = useRecipients()
   const [chosen, setChosen] = useState<Set<number>>(new Set())
   const [message, setMessage] = useState('')
+  const [name, setName] = useState(() => {
+    const all = [...folders, ...files]
+    return all.length === 1 ? all[0].name : `${all[0]?.name ?? ''} and ${all.length - 1} more`
+  })
+  // Set once the package exists: if only the email step failed, a retry sends that package
+  // and does not make a second one.
+  const [packageId, setPackageId] = useState<number | null>(null)
   const [result, setResult] = useState<ShareResult | null>(null)
   const { busy, error, setError, run } = useAction()
 
@@ -46,14 +58,19 @@ export default function ShareDialog({
       return
     }
     await run(async () => {
-      setResult(
-        await api.share(
-          files.map((file) => file.id),
-          folders.map((folder) => folder.id),
-          [...chosen],
-          message,
-        ),
-      )
+      const data = {
+        name,
+        message,
+        file_ids: files.map((file) => file.id),
+        folder_ids: folders.map((folder) => folder.id),
+        recipient_ids: [...chosen],
+      }
+      const saved =
+        packageId === null
+          ? await packagesApi.create(data)
+          : await packagesApi.update(packageId, data)
+      setPackageId(saved.id)
+      setResult(await packagesApi.send(saved.id))
     })
   }
 
@@ -76,6 +93,10 @@ export default function ShareDialog({
             Link
             <input readOnly value={result.link} onFocus={(event) => event.target.select()} />
           </label>
+          <p className="hint">
+            Saved as the package “{name.trim()}”. See what was sent, change it or send it again in{' '}
+            <Link to="/packages">Packages</Link>.
+          </p>
           {hasEncrypted && (
             <p className="hint">
               Encrypted documents open only with their password. Give it to the recipients
@@ -106,6 +127,11 @@ export default function ShareDialog({
           ))}
         </ul>
 
+        <label>
+          Package name
+          <input value={name} required onChange={(event) => setName(event.target.value)} />
+        </label>
+
         <RecipientPicker
           recipients={recipients}
           loadError={loadError}
@@ -121,9 +147,9 @@ export default function ShareDialog({
         <p className="hint">
           Each recipient gets an email with a link to view or download{' '}
           {folders.length === 0 && files.length === 1 ? `this ${noun}` : `these ${noun}s`}. Anyone
-          with the link can open it.
+          with the link can open it. It is saved as a package in Packages.
           {folders.length > 0 &&
-            ` A shared ${folderNoun} includes what is in it now, not what is added later.`}
+            ` A shared ${folderNoun} shows what is in it when the link is opened, including what is added later.`}
         </p>
 
         {error && (
