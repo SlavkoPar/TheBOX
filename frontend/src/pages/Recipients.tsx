@@ -2,8 +2,10 @@ import { useState } from 'react'
 import { recipientsApi } from '../api'
 import type { Recipient, RecipientInput } from '../api'
 import { ConfirmDialog, FormModal } from '../common/Modal'
+import ViewToggle from '../common/ViewToggle'
 import { Icon } from '../common/icons'
 import { useCollection } from '../common/useCollection'
+import { useViewMode } from '../common/useViewMode'
 
 const EMPTY: RecipientInput = {
   first_name: '',
@@ -67,6 +69,34 @@ export default function Recipients() {
   const { items, loading, error, create, update, remove } = useCollection(recipientsApi)
   const [editing, setEditing] = useState<Recipient | 'new' | null>(null)
   const [deleting, setDeleting] = useState<Recipient | null>(null)
+  const [mode, setMode] = useViewMode('recipients', 'list')
+
+  const fullName = (recipient: Recipient) => `${recipient.first_name} ${recipient.last_name}`.trim()
+
+  function actions(recipient: Recipient) {
+    return (
+      <>
+        <button
+          type="button"
+          className="icon-button"
+          aria-label={`Edit ${fullName(recipient)}`}
+          title="Edit"
+          onClick={() => setEditing(recipient)}
+        >
+          <Icon name="edit" />
+        </button>
+        <button
+          type="button"
+          className="icon-button"
+          aria-label={`Delete ${fullName(recipient)}`}
+          title="Delete"
+          onClick={() => setDeleting(recipient)}
+        >
+          <Icon name="trash" />
+        </button>
+      </>
+    )
+  }
 
   return (
     <div className="page">
@@ -75,9 +105,12 @@ export default function Recipients() {
           <h2>Recipients</h2>
           <p className="hint">People you can send links to from Drive and Photos.</p>
         </div>
-        <button type="button" onClick={() => setEditing('new')}>
-          <Icon name="plus" size={18} /> New recipient
-        </button>
+        <div className="toolbar">
+          <ViewToggle mode={mode} onChange={setMode} />
+          <button type="button" onClick={() => setEditing('new')}>
+            <Icon name="plus" size={18} /> New recipient
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -90,6 +123,25 @@ export default function Recipients() {
         <p>Loading…</p>
       ) : items.length === 0 ? (
         <p className="empty">No recipients yet. Add the people you want to share with.</p>
+      ) : mode === 'grid' ? (
+        <ul className="card-grid" aria-label="Recipients">
+          {items.map((recipient) => (
+            <li key={recipient.id} aria-label={fullName(recipient)}>
+              <div className="card-head">
+                <strong>{fullName(recipient)}</strong>
+                <span className="spacer" />
+                <span className="row-actions">{actions(recipient)}</span>
+              </div>
+              <a href={`mailto:${recipient.email}`}>{recipient.email}</a>
+              {recipient.mobile && <span>{recipient.mobile}</span>}
+              {(recipient.address || recipient.country) && (
+                <span className="hint">
+                  {[recipient.address, recipient.country].filter(Boolean).join(', ')}
+                </span>
+              )}
+            </li>
+          ))}
+        </ul>
       ) : (
         <div className="table-wrap">
           <table className="table">
@@ -117,24 +169,7 @@ export default function Recipients() {
                   <td>{recipient.address}</td>
                   <td>{recipient.country}</td>
                   <td>{recipient.mobile}</td>
-                  <td className="row-actions">
-                    <button
-                      type="button"
-                      className="icon-button"
-                      aria-label={`Edit ${recipient.first_name} ${recipient.last_name}`.trim()}
-                      onClick={() => setEditing(recipient)}
-                    >
-                      <Icon name="edit" />
-                    </button>
-                    <button
-                      type="button"
-                      className="icon-button"
-                      aria-label={`Delete ${recipient.first_name} ${recipient.last_name}`.trim()}
-                      onClick={() => setDeleting(recipient)}
-                    >
-                      <Icon name="trash" />
-                    </button>
-                  </td>
+                  <td className="row-actions">{actions(recipient)}</td>
                 </tr>
               ))}
             </tbody>

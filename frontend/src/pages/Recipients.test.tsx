@@ -30,6 +30,28 @@ describe('Recipients', () => {
     ).toEqual(['First name', 'Last name', 'Email', 'Address', 'Country', 'Mobile'])
   })
 
+  it('can show recipients as a grid of cards', async () => {
+    mockApi({ ...ME, 'GET /api/recipients': { body: { items: [ANA] } } })
+    renderApp(<Recipients />)
+    const user = userEvent.setup()
+
+    await screen.findByText('ana@example.com')
+    await user.click(screen.getByRole('button', { name: 'Grid view' }))
+
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    const card = screen.getByRole('listitem', { name: 'Ana Kovač' })
+    expect(within(card).getByRole('link', { name: 'ana@example.com' })).toHaveAttribute(
+      'href',
+      'mailto:ana@example.com',
+    )
+    expect(within(card).getByText('Main Street 1, Serbia')).toBeInTheDocument()
+    expect(within(card).getByText('+381 60 123')).toBeInTheDocument()
+    expect(within(card).getByRole('button', { name: 'Edit Ana Kovač' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'List view' }))
+    expect(screen.getByRole('table')).toBeInTheDocument()
+  })
+
   it('shows an empty state', async () => {
     mockApi({ ...ME, 'GET /api/recipients': { body: { items: [] } } })
     renderApp(<Recipients />)

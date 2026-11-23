@@ -96,6 +96,19 @@ describe('Packages', () => {
     expect(await screen.findByText(/No packages yet/)).toBeInTheDocument()
   })
 
+  it('switches between a list and a grid of packages', async () => {
+    mockApi({ ...ME, 'GET /api/packages': { body: { items: [PACKAGE] } } })
+    renderApp(<Packages />)
+    const user = userEvent.setup()
+
+    const list = await screen.findByRole('list', { name: 'Packages' })
+    expect(list).not.toHaveClass('grid')
+    await user.click(screen.getByRole('button', { name: 'Grid view' }))
+    expect(list).toHaveClass('grid')
+    expect(screen.getByRole('button', { name: 'Grid view' })).toHaveAttribute('aria-pressed', 'true')
+    expect(within(list).getByRole('listitem', { name: 'For the board' })).toBeInTheDocument()
+  })
+
   it('lists a package with its contents, recipients and link', async () => {
     mockApi({ ...ME, 'GET /api/packages': { body: { items: [PACKAGE] } } })
     renderApp(<Packages />)

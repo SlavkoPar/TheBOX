@@ -6,10 +6,12 @@ import type { FileApp, FileItem, Folder, Found, Listing, StorageInfo } from '../
 import { Lightbox, MoveDialog, PreviewDialog, SharedLinksDialog } from './FileDialogs'
 import { ConfirmDialog, FormModal, PromptDialog } from './Modal'
 import ShareDialog from './ShareDialog'
+import ViewToggle from './ViewToggle'
 import { RichTextEditor, SheetEditor, TextEditor } from './editors'
 import { formatBytes, formatDate, saveBlob } from './format'
 import { Icon } from './icons'
 import { useAction } from './useAction'
+import { useViewMode } from './useViewMode'
 
 /**
  * Folder browser shared by Drive and Photos: subfolders, upload, selection,
@@ -22,6 +24,7 @@ export type FileBrowserOptions = {
   /** "document" / "photo" — used in button labels and messages */
   noun: string
   folderNoun: string
+  /** the view shown until the user picks List or Grid themselves */
   view: 'list' | 'grid'
   /** value for the file input's accept attribute */
   accept?: string
@@ -103,6 +106,7 @@ export default function FileBrowser({ options }: { options: FileBrowserOptions }
   const [dialog, setDialog] = useState<Dialog | null>(null)
   const [searchText, setSearchText] = useState(query)
   const action = useAction()
+  const [mode, setMode] = useViewMode(app, options.view)
   const fileInput = useRef<HTMLInputElement>(null)
 
   const fetchData = useCallback(async (): Promise<Data> => {
@@ -158,7 +162,11 @@ export default function FileBrowser({ options }: { options: FileBrowserOptions }
   const folders = current ? (current.view === 'browse' ? current.listing.folders : current.found.folders) : []
   const listing = current?.view === 'browse' ? current.listing : null
   const browsing = view === 'browse'
-  const grid = browsing && options.view === 'grid'
+  // The trash is always a table: what matters there is where things were and when they went.
+  const grid = view !== 'trash' && mode === 'grid'
+  /** Photos open in the viewer with the slideshow; documents in an editor, preview or new tab. */
+  const gallery = !options.documents
+  const hasThumb = (file: FileItem) => file.mime_type.startsWith('image/') && !file.is_encrypted
 
   const pickedFiles = files.filter((file) => selFiles.has(file.id))
   const pickedFolders = folders.filter((folder) => selFolders.has(folder.id))
@@ -204,7 +212,7 @@ export default function FileBrowser({ options }: { options: FileBrowserOptions }
   /** Open a file with whatever fits its type. */
   async function open(file: FileItem) {
     if (file.is_encrypted) return setDialog({ kind: 'unlock', file })
-    if (options.view === 'grid') {
+    if (gallery) {
       return setDialog({ kind: 'photo', index: Math.max(0, files.findIndex((f) => f.id === file.id)) })
     }
     const editor =
@@ -371,6 +379,7 @@ export default function FileBrowser({ options }: { options: FileBrowserOptions }
           </button>
         )}
         <span className="spacer" />
+        {view !== 'trash' && <ViewToggle mode={mode} onChange={setMode} />}
         <StorageMeter info={storage} />
         <button type="button" className="secondary" onClick={() => setDialog({ kind: 'links' })}>
           <Icon name="send" size={18} /> Shared links
@@ -525,7 +534,12 @@ export default function FileBrowser({ options }: { options: FileBrowserOptions }
                   )}
                   <td>
                     <button type="button" className="item-name link-button" onClick={() => open(file)}>
-                      <Icon name={file.is_encrypted ? 'lock' : 'file'} /> {file.name}
+                      {gallery && hasThumb(file) ? (
+                        <img className="thumb-small" src={api.thumbUrl(file.id)} alt="" loading="lazy" />
+                      ) : (
+                        <Icon name={file.is_encrypted ? 'lock' : 'file'} />
+                      )}{' '}
+                      {file.name}
                     </button>
                     {file.is_encrypted && <span className="badge">Encrypted</span>}
                   </td>
@@ -550,13 +564,19 @@ export default function FileBrowser({ options }: { options: FileBrowserOptions }
             <ul className="folder-tiles" aria-label={`${folderNoun}s`}>
               {folders.map((folder) => (
                 <li key={folder.id} className={selFolders.has(folder.id) ? 'folder-tile selected' : 'folder-tile'}>
-                  <input
-                    type="checkbox"
-                    checked={selFolders.has(folder.id)}
-                    aria-label={`Select ${folderNoun} ${folder.name}`}
-                    onChange={() => toggle(selFolders, setSelFolders, folder.id)}
-                  />
-                  <Link to={folderLink(folder.id)} className="item-name">
+                  {browsing && (
+                    <input
+                      type="checkbox"
+                      checked={selFolders.has(folder.id)}
+                      aria-label={`Select ${folderNoun} ${folder.name}`}
+                      onChange={() => toggle(selFolders, setSelFolders, folder.id)}
+                    />
+                  )}
+                  <Link
+                    to={folderLink(folder.id)}
+                    className="item-name"
+                    title={view === 'search' ? `In ${folder.path || options.title}` : undefined}
+                  >
                     <Icon name="folder" /> {folder.name}
                   </Link>
                   <span className="spacer" />
@@ -565,26 +585,42 @@ export default function FileBrowser({ options }: { options: FileBrowserOptions }
               ))}
             </ul>
           )}
-          <ul className="photo-grid" aria-label={`${noun}s`}>
-            {files.map((file) => (
-              <li key={file.id} className={selFiles.has(file.id) ? 'photo selected' : 'photo'}>
-                <button type="button" className="photo-open" onClick={() => open(file)}>
-                  <img src={api.thumbUrl(file.id)} alt={file.name} loading="lazy" />
-                </button>
-                <input
-                  type="checkbox"
-                  className="photo-check"
-                  checked={selFiles.has(file.id)}
-                  aria-label={`Select ${file.name}`}
-                  onChange={() => toggle(selFiles, setSelFiles, file.id)}
-                />
-                <div className="photo-caption">
-                  <span title={file.name}>{file.name}</span>
-                  <span className="row-actions">{fileActions(file)}</span>
-                </div>
-              </li>
-            ))}
-          </ul>
+          {files.length > 0 && (
+            <ul className="photo-grid" aria-label={`${noun}s`}>
+              {files.map((file) => (
+                <li key={file.id} className={selFiles.has(file.id) ? 'photo selected' : 'photo'}>
+                  {hasThumb(file) ? (
+                    <button type="button" className="photo-open" onClick={() => open(file)}>
+                      <img src={api.thumbUrl(file.id)} alt={file.name} loading="lazy" />
+                    </button>
+                  ) : (
+                    <button type="button" className="photo-open file-tile" onClick={() => open(file)}>
+                      <Icon name={file.is_encrypted ? 'lock' : 'file'} size={48} />
+                      <span className="visually-hidden">{file.name}</span>
+                    </button>
+                  )}
+                  {browsing && (
+                    <input
+                      type="checkbox"
+                      className="photo-check"
+                      checked={selFiles.has(file.id)}
+                      aria-label={`Select ${file.name}`}
+                      onChange={() => toggle(selFiles, setSelFiles, file.id)}
+                    />
+                  )}
+                  <div className="photo-caption">
+                    <span title={file.name}>{file.name}</span>
+                    <span className="row-actions">{fileActions(file)}</span>
+                  </div>
+                  {view === 'search' && (
+                    <Link className="photo-path" to={folderLink(file.folder_id)}>
+                      In {file.path || options.title}
+                    </Link>
+                  )}
+                </li>
+              ))}
+            </ul>
+          )}
         </>
       )}
 

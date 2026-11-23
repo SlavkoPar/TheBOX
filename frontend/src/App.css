@@ -1539,3 +1539,84 @@ label.check,
 .calendar-event.detailed .event-time {
   flex: 1 1 100%;
 }
+
+/* ---------- List / Grid views ---------- */
+
+.view-toggle button {
+  padding: 6px 9px;
+}
+
+/* A file without a picture to show: its icon stands in for the thumbnail. */
+.photo-open.file-tile {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text);
+}
+
+.photo-path {
+  display: block;
+  padding: 0 10px 6px;
+  font-size: 13px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.thumb-small {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 4px;
+  object-fit: cover;
+}
+
+.package-list.grid,
+.card-grid,
+.task-list.grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  align-items: start;
+  gap: 10px;
+}
+
+.card-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+}
+
+.card-grid > li {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+  padding: 8px 8px 10px 14px;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  font-size: 15px;
+  color: var(--text-h);
+  overflow-wrap: anywhere;
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.package-list.grid > li {
+  min-width: 0;
+}
+
+.task-list.grid {
+  border: 0;
+  grid-template-columns: repeat(auto-fill, minmax(250px, 1fr));
+}
+
+.task-list.grid > .task-item {
+  min-width: 0;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+}

@@ -4,10 +4,12 @@ import { useSearchParams } from 'react-router-dom'
 import { REPEAT_LABELS, taskListsApi, tasksApi } from '../api'
 import type { Repeat, Task, TaskInput, TaskList } from '../api'
 import { ConfirmDialog, FormModal, PromptDialog } from '../common/Modal'
+import ViewToggle from '../common/ViewToggle'
 import { dateKey, formatDate } from '../common/format'
 import { Icon } from '../common/icons'
 import { useAction } from '../common/useAction'
 import { useCollection } from '../common/useCollection'
+import { useViewMode } from '../common/useViewMode'
 
 const REPEATS = Object.keys(REPEAT_LABELS) as Repeat[]
 const DEFAULT_LIST = 'My tasks'
@@ -101,6 +103,8 @@ export default function Tasks() {
   const [listDialog, setListDialog] = useState<ListDialog | null>(null)
   const [showDone, setShowDone] = useState(false)
   const action = useAction()
+  const [mode, setMode] = useViewMode('tasks', 'list')
+  const listClass = mode === 'grid' ? 'task-list grid' : 'task-list'
   const [today] = useState(() => dateKey(new Date()))
 
   // The list shown comes from the URL, so it survives a reload and can be linked to.
@@ -249,16 +253,19 @@ export default function Tasks() {
       <section className="task-main">
         <div className="page-header">
           <h2>{currentList?.name ?? DEFAULT_LIST}</h2>
-          {currentList && (
-            <div className="toolbar">
-              <button type="button" className="secondary" onClick={() => setListDialog({ kind: 'rename', list: currentList })}>
-                Rename list
-              </button>
-              <button type="button" className="secondary" onClick={() => setListDialog({ kind: 'delete', list: currentList })}>
-                Delete list
-              </button>
-            </div>
-          )}
+          <div className="toolbar">
+            <ViewToggle mode={mode} onChange={setMode} />
+            {currentList && (
+              <>
+                <button type="button" className="secondary" onClick={() => setListDialog({ kind: 'rename', list: currentList })}>
+                  Rename list
+                </button>
+                <button type="button" className="secondary" onClick={() => setListDialog({ kind: 'delete', list: currentList })}>
+                  Delete list
+                </button>
+              </>
+            )}
+          </div>
         </div>
 
         <form className="inline-form" onSubmit={add}>
@@ -295,7 +302,7 @@ export default function Tasks() {
             {open.length === 0 ? (
               <p className="empty">All done.</p>
             ) : (
-              <ul className="task-list" aria-label="Open tasks">
+              <ul className={listClass} aria-label="Open tasks">
                 {open.map((task) => row(task))}
               </ul>
             )}
@@ -311,7 +318,7 @@ export default function Tasks() {
                   {showDone ? 'Hide' : 'Show'} completed ({done.length})
                 </button>
                 {showDone && (
-                  <ul className="task-list" aria-label="Completed tasks">
+                  <ul className={listClass} aria-label="Completed tasks">
                     {done.map((task) => row(task))}
                   </ul>
                 )}

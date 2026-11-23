@@ -142,6 +142,43 @@ describe('Shared', () => {
     )
   })
 
+  it('can show the files as a grid, and photos as a list', async () => {
+    mockApi({
+      'GET /api/shared/tok': {
+        body: {
+          ...DOCS,
+          files: [
+            ...DOCS.files,
+            { id: 13, name: 'cat.png', mime_type: 'image/png', size: 2048, is_encrypted: false, ...NO_SIZE },
+          ],
+        },
+      },
+    })
+    renderShared()
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Grid view' }))
+    const tiles = within(screen.getByRole('list', { name: 'Shared documents' })).getAllByRole('listitem')
+    expect(tiles).toHaveLength(4)
+    // A picture shows its small version; other files an icon that opens or downloads them
+    expect(within(tiles[3]).getByRole('img', { name: 'cat.png' })).toHaveAttribute(
+      'src',
+      '/api/shared/tok/files/13/thumb',
+    )
+    expect(within(tiles[0]).getByRole('link', { name: 'Open report.pdf' })).toHaveAttribute(
+      'href',
+      '/api/shared/tok/files/10',
+    )
+    expect(within(tiles[1]).getByRole('link', { name: 'Open data.zip' })).toHaveAttribute(
+      'href',
+      '/api/shared/tok/files/11?download=1',
+    )
+    expect(within(tiles[1]).getByRole('link', { name: 'Download data.zip' })).toBeInTheDocument()
+    // An encrypted file still asks for its password
+    await user.click(within(tiles[2]).getByRole('button', { name: 'Unlock and download plan.txt' }))
+    expect(screen.getByRole('dialog', { name: 'Unlock plan.txt' })).toBeInTheDocument()
+  })
+
   it('explains when the link is invalid or expired', async () => {
     mockApi({
       'GET /api/shared/bad': { status: 404, body: { error: 'This link is not valid or has expired.' } },

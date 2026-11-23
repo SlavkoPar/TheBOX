@@ -4,6 +4,7 @@ import { packagesApi } from '../api'
 import type { Package, PackageInput, PackageSend, ShareResult } from '../api'
 import ItemPicker from '../common/ItemPicker'
 import { ConfirmDialog, Modal } from '../common/Modal'
+import ViewToggle from '../common/ViewToggle'
 import RecipientPicker, { useRecipients } from '../common/RecipientPicker'
 import { formatDate, formatTime } from '../common/format'
 import { Icon } from '../common/icons'
@@ -11,6 +12,7 @@ import { itemKey, locationOf } from '../common/items'
 import type { PickedItem } from '../common/items'
 import { useAction } from '../common/useAction'
 import { useCollection } from '../common/useCollection'
+import { useViewMode } from '../common/useViewMode'
 
 const count = (n: number, noun: string) => `${n} ${noun}${n === 1 ? '' : 's'}`
 
@@ -366,6 +368,7 @@ export default function Packages() {
   const [editing, setEditing] = useState<Package | 'new' | null>(null)
   const [sending, setSending] = useState<Package | null>(null)
   const [deleting, setDeleting] = useState<Package | null>(null)
+  const [mode, setMode] = useViewMode('packages', 'list')
 
   return (
     <div className="page">
@@ -377,9 +380,12 @@ export default function Packages() {
             recipients, and keep a record of what was sent.
           </p>
         </div>
-        <button type="button" onClick={() => setEditing('new')}>
-          <Icon name="plus" size={18} /> New package
-        </button>
+        <div className="toolbar">
+          <ViewToggle mode={mode} onChange={setMode} />
+          <button type="button" onClick={() => setEditing('new')}>
+            <Icon name="plus" size={18} /> New package
+          </button>
+        </div>
       </div>
 
       {error && (
@@ -393,7 +399,7 @@ export default function Packages() {
       ) : items.length === 0 ? (
         <p className="empty">No packages yet. Create one to send files to your recipients.</p>
       ) : (
-        <ul className="package-list" aria-label="Packages">
+        <ul className={mode === 'grid' ? 'package-list grid' : 'package-list'} aria-label="Packages">
           {items.map((pkg) => (
             <PackageCard
               key={pkg.id}

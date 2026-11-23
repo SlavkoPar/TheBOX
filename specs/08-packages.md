@@ -4,3 +4,5 @@
 
 - for `Packages`, make presentation of `Package` compact, decrease a litle font size, paddings, margins ...
 
+- enable List and Grid Views everywhere
+

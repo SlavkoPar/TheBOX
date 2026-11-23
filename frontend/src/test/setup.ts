@@ -9,4 +9,5 @@ configure({ asyncUtilTimeout: 5000 })
 afterEach(() => {
   cleanup()
   vi.unstubAllGlobals()
+  localStorage.clear() // the remembered List / Grid choice must not leak between tests
 })

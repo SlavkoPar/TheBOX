@@ -3,8 +3,10 @@ import { useParams } from 'react-router-dom'
 import { errorMessage, sharedApi } from '../api'
 import type { SharedFile, SharedListing } from '../api'
 import { PromptDialog } from '../common/Modal'
+import ViewToggle from '../common/ViewToggle'
 import { formatBytes, formatDate, saveBlob } from '../common/format'
 import { Icon } from '../common/icons'
+import { useViewMode } from '../common/useViewMode'
 
 // Types the server lets a browser display; everything else is download-only.
 const VIEWABLE = [
@@ -44,6 +46,9 @@ export default function Shared() {
   // A package has a name and holds files of both apps, some of them in folders.
   const isPackage = listing?.app === 'package'
   const noun = isPhotos ? 'photo' : isPackage ? 'file' : 'document'
+  // Photos open as a gallery, documents as a list; the visitor can switch either way.
+  const [mode, setMode] = useViewMode(`shared.${listing?.app ?? 'drive'}`, isPhotos ? 'grid' : 'list')
+  const listLabel = isPhotos ? 'Shared photos' : isPackage ? 'Shared files' : 'Shared documents'
 
   function actions(file: SharedFile) {
     if (file.is_encrypted) {
@@ -110,6 +115,7 @@ export default function Shared() {
                     {listing.expires_at && ` · link works until ${formatDate(listing.expires_at)}`}
                   </p>
                 </div>
+                {listing.files.length > 0 && <ViewToggle mode={mode} onChange={setMode} />}
               </div>
 
               {listing.message && <blockquote className="share-message">{listing.message}</blockquote>}
@@ -118,33 +124,56 @@ export default function Shared() {
                 <p className="empty">The shared {noun}s are no longer available.</p>
               )}
 
-              {isPhotos ? (
-                <ul className="photo-grid" aria-label="Shared photos">
+              {listing.files.length > 0 && mode === 'grid' && (
+                <ul className="photo-grid" aria-label={listLabel}>
                   {listing.files.map((file) => (
                     <li key={file.id} className="photo">
-                      <a
-                        className="photo-open"
-                        href={sharedApi.contentUrl(token, file.id)}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                      >
-                        <img src={sharedApi.thumbUrl(token, file.id)} alt={file.name} loading="lazy" />
-                      </a>
-                      <div className="photo-caption">
-                        <span title={file.name}>{file.name}</span>
-                        <a
-                          className="icon-button"
-                          href={sharedApi.contentUrl(token, file.id, true)}
-                          aria-label={`Download ${file.name}`}
+                      {file.is_encrypted ? (
+                        <button
+                          type="button"
+                          className="photo-open file-tile"
+                          aria-label={`Unlock and download ${file.name}`}
+                          onClick={() => setUnlocking(file)}
                         >
-                          <Icon name="download" />
+                          <Icon name="lock" size={48} />
+                        </button>
+                      ) : (
+                        <a
+                          className={file.mime_type.startsWith('image/') ? 'photo-open' : 'photo-open file-tile'}
+                          href={sharedApi.contentUrl(token, file.id, !VIEWABLE.includes(file.mime_type))}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {file.mime_type.startsWith('image/') ? (
+                            <img src={sharedApi.thumbUrl(token, file.id)} alt={file.name} loading="lazy" />
+                          ) : (
+                            <>
+                              <Icon name="file" size={48} />
+                              <span className="visually-hidden">Open {file.name}</span>
+                            </>
+                          )}
                         </a>
+                      )}
+                      <div className="photo-caption">
+                        <span title={file.path ? `${file.path} / ${file.name}` : file.name}>{file.name}</span>
+                        {!file.is_encrypted && (
+                          <a
+                            className="icon-button"
+                            href={sharedApi.contentUrl(token, file.id, true)}
+                            aria-label={`Download ${file.name}`}
+                            title="Download"
+                          >
+                            <Icon name="download" />
+                          </a>
+                        )}
                       </div>
                     </li>
                   ))}
                 </ul>
-              ) : (
-                <ul className="shared-list" aria-label={isPackage ? 'Shared files' : 'Shared documents'}>
+              )}
+
+              {listing.files.length > 0 && mode === 'list' && (
+                <ul className="shared-list" aria-label={listLabel}>
                   {listing.files.map((file) => (
                     <li key={file.id}>
                       <span className="item-name">

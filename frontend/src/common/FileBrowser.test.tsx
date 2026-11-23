@@ -85,6 +85,31 @@ describe('FileBrowser (Drive): browsing', () => {
     )
   })
 
+  it('switches to a grid of tiles and remembers the choice', async () => {
+    mockApi({ ...ME, 'GET /api/drive/items': { body: TOP } })
+    const first = renderFiles()
+    const user = userEvent.setup()
+
+    expect(await screen.findByRole('table')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'List view' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByRole('button', { name: 'Grid view' }))
+
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    const tiles = within(screen.getByRole('list', { name: 'documents' })).getAllByRole('listitem')
+    expect(tiles).toHaveLength(2)
+    // Same things can be done from a tile as from a row
+    expect(within(tiles[0]).getByRole('button', { name: 'report.pdf' })).toBeInTheDocument()
+    expect(within(tiles[0]).getByRole('checkbox', { name: 'Select report.pdf' })).toBeInTheDocument()
+    expect(within(tiles[0]).getByRole('link', { name: 'Download report.pdf' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Work' })).toHaveAttribute('href', '/drive?folder=3')
+
+    // Coming back later, Drive is still a grid
+    first.unmount()
+    renderFiles()
+    expect(await screen.findByRole('list', { name: 'documents' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Grid view' })).toHaveAttribute('aria-pressed', 'true')
+  })
+
   it('opens a subfolder and shows the path back', async () => {
     mockApi({
       ...ME,
@@ -778,6 +803,23 @@ describe('FileBrowser (Photos)', () => {
     expect(screen.getByRole('dialog', { name: 'beach.jpg' })).toBeInTheDocument()
     await user.click(screen.getByRole('button', { name: 'Previous photo' }))
     expect(screen.getByRole('dialog', { name: 'sea.jpg' })).toBeInTheDocument()
+  })
+
+  it('can show photos as a list, which still opens the viewer', async () => {
+    mockApi({ ...ME, 'GET /api/photos/items': { body: PHOTOS } })
+    renderFiles('/photos')
+    const user = userEvent.setup()
+
+    await screen.findByRole('img', { name: 'beach.jpg' })
+    expect(screen.getByRole('button', { name: 'Grid view' })).toHaveAttribute('aria-pressed', 'true')
+    await user.click(screen.getByRole('button', { name: 'List view' }))
+
+    const row = screen.getByRole('button', { name: 'beach.jpg' }).closest('tr')!
+    expect(within(row).getByRole('checkbox', { name: 'Select beach.jpg' })).toBeInTheDocument()
+    expect(within(row).getByText('2.0 KB')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'beach.jpg' }))
+    expect(screen.getByRole('dialog', { name: 'beach.jpg' })).toHaveTextContent('1 of 3')
   })
 
   it('offers a slideshow that can be started and paused', async () => {
