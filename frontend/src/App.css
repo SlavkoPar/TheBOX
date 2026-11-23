@@ -1042,28 +1042,85 @@ label.check,
   padding: 0;
   display: flex;
   flex-direction: column;
-  gap: 14px;
+  gap: 8px;
 }
 
+/* A package is shown compact: smaller text and tighter spacing than the rest of the app. */
 .package-list > li {
   display: flex;
   flex-direction: column;
-  gap: 10px;
-  padding: 14px 16px;
+  gap: 5px;
+  padding: 8px 12px;
   border: 1px solid var(--border);
   border-radius: var(--radius);
+  font-size: 14px;
+}
+
+.package-list p,
+.package-list blockquote {
+  margin: 0;
+}
+
+.package-list .hint,
+.package-list small,
+.package-list .badge {
+  font-size: 12px;
+}
+
+.package-list button:not(.icon-button) {
+  padding: 4px 10px;
+}
+
+.package-list .icon-button {
+  padding: 4px;
+}
+
+.package-list .icon-button .icon {
+  width: 17px;
+  height: 17px;
+}
+
+.package-list input {
+  padding: 4px 8px;
+  font-size: 13px;
+}
+
+.package-list .item-name {
+  gap: 6px;
+}
+
+.package-list .package-contents li {
+  padding: 1px 0;
+}
+
+.package-list .share-message {
+  padding: 4px 10px;
+}
+
+.package-list .link-row {
+  gap: 6px;
+}
+
+.package-list .package-history ul {
+  margin-top: 5px;
+  gap: 6px;
+}
+
+.package-list .package-history li {
+  gap: 0;
+  padding-left: 10px;
 }
 
 .package-head {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 4px;
 }
 
 .package-head h3 {
   margin: 0;
-  font-size: 18px;
+  font-size: 15px;
   overflow-wrap: anywhere;
 }
 
