@@ -6,9 +6,11 @@ import { appsFor, countsFor } from '../apps'
 import { useAuth } from '../auth'
 import DemoFetch from '../components/DemoFetch'
 import { Icon } from '../common/icons'
+import { useMessenger } from '../common/messengerContext'
 
 export default function Home() {
   const { user } = useAuth()
+  const messenger = useMessenger()
   const [summary, setSummary] = useState<Summary | null>(null)
 
   useEffect(() => {
@@ -38,7 +40,18 @@ export default function Home() {
 
       <nav className="app-tiles" aria-label="Your apps">
         {appsFor(user).map((app) => (
-          <Link key={app.id} to={app.path} className={`app-tile app-${app.id}`}>
+          <Link
+            key={app.id}
+            to={app.path}
+            className={`app-tile app-${app.id}`}
+            onClick={(event) => {
+              // The Messenger opens as a panel on the right, not as a page
+              if (app.id === 'messenger') {
+                event.preventDefault()
+                messenger.open()
+              }
+            }}
+          >
             <span className="app-icon">
               <Icon name={app.icon} size={28} />
             </span>

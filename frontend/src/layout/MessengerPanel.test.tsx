@@ -3,9 +3,11 @@ import userEvent from '@testing-library/user-event'
 import { Route, Routes } from 'react-router-dom'
 import { describe, expect, it } from 'vitest'
 import type { ChatMessage, Conversation } from '../api'
+import Home from '../pages/Home'
+import Messenger from '../pages/Messenger'
+import Recipients from '../pages/Recipients'
 import { USER, lastBody, mockApi, renderApp } from '../test/utils'
-import Messenger from './Messenger'
-import Recipients from './Recipients'
+import AppLayout from './AppLayout'
 
 const ME = { 'GET /api/auth/me': { body: { user: USER } } }
 
@@ -22,37 +24,68 @@ const STRANGER: Conversation = {
   last: { ...REPLY, id: 9, body: 'Do you remember me?' },
 }
 
+const PEOPLE = 'GET /api/messenger/conversations'
 const CHAT_ANA = 'GET /api/messenger/messages?with=ana%40example.com'
 
-function renderMessenger(route = '/messenger') {
+function renderShell(route = '/drive') {
   return renderApp(
     <Routes>
-      <Route path="/messenger" element={<Messenger />} />
-      <Route path="/recipients" element={<Recipients />} />
+      <Route element={<AppLayout />}>
+        <Route path="/" element={<Home />} />
+        <Route path="/drive" element={<p>drive page</p>} />
+        <Route path="/recipients" element={<Recipients />} />
+        <Route path="/messenger" element={<Messenger />} />
+      </Route>
     </Routes>,
     route,
   )
 }
 
-describe('Messenger', () => {
-  it('lists the recipients as people to chat with', async () => {
-    mockApi({ ...ME, 'GET /api/messenger/conversations': { body: { items: [ANA, BOB] } } })
-    renderMessenger()
+/** Open the panel with the header button. */
+async function openPanel(user = userEvent.setup()) {
+  await user.click(await screen.findByRole('button', { name: /^Messenger/ }))
+  return screen.getByRole('complementary', { name: 'Messenger' })
+}
 
-    const chats = await screen.findByRole('navigation', { name: 'Chats' })
-    const ana = within(chats).getByRole('link', { name: /Ana Kovač/ })
-    expect(ana).toHaveAttribute('href', '/messenger?with=ana%40example.com')
-    expect(within(ana).getByLabelText('1 unread')).toHaveTextContent('1')
-    expect(ana).toHaveTextContent('Hi there')
-    expect(within(chats).getByRole('link', { name: /Bob/ })).toHaveTextContent('No messages yet')
-    expect(screen.getByText('Choose someone to chat with.')).toBeInTheDocument()
+describe('Messenger panel', () => {
+  it('shows the unread count in the header and stays closed until asked', async () => {
+    mockApi({ ...ME, [PEOPLE]: { body: { items: [ANA, STRANGER] } } })
+    renderShell()
+
+    const toggle = await screen.findByRole('button', { name: 'Messenger, 3 unread' })
+    expect(toggle).toHaveAttribute('aria-expanded', 'false')
+    expect(screen.queryByRole('complementary', { name: 'Messenger' })).not.toBeInTheDocument()
   })
 
-  it('opens a chat and sends a message with Enter', async () => {
+  it('slides in over the current page, lists the recipients, and closes again', async () => {
+    mockApi({ ...ME, [PEOPLE]: { body: { items: [ANA, BOB] } } })
+    renderShell()
+    const user = userEvent.setup()
+
+    const panel = await openPanel(user)
+    // The page underneath is still there
+    expect(screen.getByText('drive page')).toBeInTheDocument()
+
+    const chats = await within(panel).findByRole('navigation', { name: 'Chats' })
+    const ana = within(chats).getByRole('button', { name: /Ana Kovač/ })
+    expect(within(ana).getByLabelText('1 unread')).toHaveTextContent('1')
+    expect(ana).toHaveTextContent('Hi there')
+    expect(within(chats).getByRole('button', { name: /Bob/ })).toHaveTextContent('No messages yet')
+
+    await user.click(within(panel).getByRole('button', { name: 'Close Messenger' }))
+    expect(screen.queryByRole('complementary', { name: 'Messenger' })).not.toBeInTheDocument()
+
+    // Escape closes it too
+    await openPanel(user)
+    await user.keyboard('{Escape}')
+    expect(screen.queryByRole('complementary', { name: 'Messenger' })).not.toBeInTheDocument()
+  })
+
+  it('opens a chat, sends a message with Enter, and goes back to the list', async () => {
     let people = [ANA, BOB]
     const fetchMock = mockApi({
       ...ME,
-      'GET /api/messenger/conversations': () => ({ body: { items: people } }),
+      [PEOPLE]: () => ({ body: { items: people } }),
       [CHAT_ANA]: { body: { items: [HELLO, REPLY] } },
       [`${CHAT_ANA}&after=2`]: { body: { items: [] } },
       'POST /api/messenger/messages': () => {
@@ -63,11 +96,12 @@ describe('Messenger', () => {
         }
       },
     })
-    renderMessenger()
+    renderShell()
     const user = userEvent.setup()
 
-    await user.click(await screen.findByRole('link', { name: /Ana Kovač/ }))
-    const chat = await screen.findByRole('region', { name: 'Chat with Ana Kovač' })
+    const panel = await openPanel(user)
+    await user.click(await within(panel).findByRole('button', { name: /Ana Kovač/ }))
+    const chat = await within(panel).findByRole('region', { name: 'Chat with Ana Kovač' })
     const log = within(chat).getByRole('log')
     expect(await within(log).findByText('Hello Ana')).toBeInTheDocument()
     expect(within(log).getByText('Hi there').closest('.chat-row')).toHaveClass('theirs')
@@ -85,66 +119,81 @@ describe('Messenger', () => {
     })
     expect(box).toHaveValue('')
     // The list was reloaded: nothing unread any more
-    expect(screen.queryByLabelText('1 unread')).not.toBeInTheDocument()
+    expect(await screen.findByRole('button', { name: 'Messenger' })).toBeInTheDocument()
+
+    await user.click(within(panel).getByRole('button', { name: 'Back to all chats' }))
+    expect(within(panel).getByRole('navigation', { name: 'Chats' })).toBeInTheDocument()
   })
 
   it('keeps the text and shows the error when a message cannot be sent', async () => {
     mockApi({
       ...ME,
-      'GET /api/messenger/conversations': { body: { items: [BOB] } },
+      [PEOPLE]: { body: { items: [BOB] } },
       'GET /api/messenger/messages?with=bob%40example.com': { body: { items: [] } },
       'POST /api/messenger/messages': { status: 400, body: { error: 'Message is required.' } },
     })
-    renderMessenger('/messenger?with=bob@example.com')
+    renderShell()
     const user = userEvent.setup()
 
+    const panel = await openPanel(user)
+    await user.click(await within(panel).findByRole('button', { name: /Bob/ }))
     expect(await screen.findByText(/No messages yet. Write the first one/)).toBeInTheDocument()
     const box = screen.getByRole('textbox', { name: 'Message to Bob' })
     await user.type(box, 'Hello')
     await user.click(screen.getByRole('button', { name: 'Send' }))
 
-    expect(await screen.findByRole('alert')).toHaveTextContent('Message is required.')
+    expect(await within(panel).findByRole('alert')).toHaveTextContent('Message is required.')
     expect(box).toHaveValue('Hello')
   })
 
   it('deletes my own message after asking', async () => {
     const fetchMock = mockApi({
       ...ME,
-      'GET /api/messenger/conversations': { body: { items: [ANA] } },
+      [PEOPLE]: { body: { items: [ANA] } },
       [CHAT_ANA]: { body: { items: [HELLO, REPLY] } },
       'DELETE /api/messenger/messages/1': { status: 204 },
     })
-    renderMessenger('/messenger?with=ana@example.com')
+    renderShell()
     const user = userEvent.setup()
 
-    await screen.findByText('Hello Ana')
+    const panel = await openPanel(user)
+    await user.click(await within(panel).findByRole('button', { name: /Ana Kovač/ }))
+    const log = await within(panel).findByRole('log')
+    await within(log).findByText('Hello Ana')
     // Only my messages can be deleted
     expect(screen.getAllByRole('button', { name: /^Delete message/ })).toHaveLength(1)
     await user.click(screen.getByRole('button', { name: 'Delete message: Hello Ana' }))
     await user.click(within(screen.getByRole('dialog')).getByRole('button', { name: 'Delete' }))
 
-    const log = screen.getByRole('log')
     await waitFor(() => expect(within(log).queryByText('Hello Ana')).not.toBeInTheDocument())
     expect(within(log).getByText('Hi there')).toBeInTheDocument()
-    expect(fetchMock.mock.calls.some(([url, init]) => init?.method === 'DELETE' && String(url).endsWith('/1'))).toBe(true)
+    expect(
+      fetchMock.mock.calls.some(([url, init]) => init?.method === 'DELETE' && String(url).endsWith('/1')),
+    ).toBe(true)
   })
 
-  it('lets me add someone who wrote first to my recipients', async () => {
+  it('opens on the right chat from a link in the email notice', async () => {
     let people = [STRANGER]
     const fetchMock = mockApi({
       ...ME,
-      'GET /api/messenger/conversations': () => ({ body: { items: people } }),
+      [PEOPLE]: () => ({ body: { items: people } }),
       'GET /api/messenger/messages?with=new%40example.com': { body: { items: [STRANGER.last] } },
       'POST /api/recipients': () => {
         people = [{ ...STRANGER, name: 'new', recipient_id: 7, unread: 0 }]
         return { status: 201, body: { id: 7 } }
       },
     })
-    renderMessenger('/messenger?with=new@example.com')
+    renderShell('/messenger?with=New@example.com')
     const user = userEvent.setup()
 
-    await user.click(await screen.findByRole('button', { name: 'Add to recipients' }))
+    // The panel is open on that chat, over the home page
+    const panel = await screen.findByRole('complementary', { name: 'Messenger' })
+    const log = await within(panel).findByRole('log')
+    expect(await within(log).findByText('Do you remember me?')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Welcome' })).toBeInTheDocument()
 
+    // Someone who wrote first can be added to the recipients
+    await user.click(within(panel).getByRole('button', { name: 'Add to recipients' }))
     expect(await screen.findByRole('region', { name: 'Chat with new' })).toBeInTheDocument()
     expect(lastBody(fetchMock, 'POST /api/recipients')).toMatchObject({
       first_name: 'new',
@@ -154,28 +203,42 @@ describe('Messenger', () => {
   })
 
   it('explains when the address is not someone I can chat with', async () => {
-    mockApi({ ...ME, 'GET /api/messenger/conversations': { body: { items: [BOB] } } })
-    renderMessenger('/messenger?with=who@example.com')
+    mockApi({ ...ME, [PEOPLE]: { body: { items: [BOB] } } })
+    renderShell('/messenger?with=who@example.com')
 
     expect(await screen.findByText(/who@example.com is not one of your recipients/)).toBeInTheDocument()
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
   })
 
   it('points to Recipients when there is nobody to chat with', async () => {
-    mockApi({ ...ME, 'GET /api/messenger/conversations': { body: { items: [] } } })
-    renderMessenger()
+    mockApi({ ...ME, [PEOPLE]: { body: { items: [] } } })
+    renderShell()
 
-    expect(await screen.findByText(/No one to chat with yet/)).toBeInTheDocument()
-    expect(screen.getByRole('link', { name: 'Recipients' })).toHaveAttribute('href', '/recipients')
+    const panel = await openPanel()
+    expect(await within(panel).findByText(/No one to chat with yet/)).toBeInTheDocument()
+    expect(within(panel).getByRole('link', { name: 'Recipients' })).toHaveAttribute('href', '/recipients')
   })
 
   it('shows the error when the chats cannot be loaded', async () => {
-    mockApi({ ...ME, 'GET /api/messenger/conversations': { status: 500, body: { error: 'Server is down.' } } })
-    renderMessenger()
-    expect(await screen.findByRole('alert')).toHaveTextContent('Server is down.')
+    mockApi({ ...ME, [PEOPLE]: { status: 500, body: { error: 'Server is down.' } } })
+    renderShell()
+
+    const panel = await openPanel()
+    expect(await within(panel).findByRole('alert')).toHaveTextContent('Server is down.')
   })
 
-  it('is reachable from each recipient', async () => {
+  it('opens from the apps menu and the home tile without leaving the page', async () => {
+    mockApi({ ...ME, [PEOPLE]: { body: { items: [BOB] } } })
+    renderShell()
+    const user = userEvent.setup()
+
+    await user.click(await screen.findByRole('button', { name: 'Apps' }))
+    await user.click(screen.getByRole('link', { name: 'Messenger' }))
+    expect(screen.getByRole('complementary', { name: 'Messenger' })).toBeInTheDocument()
+    expect(screen.getByText('drive page')).toBeInTheDocument()
+  })
+
+  it('opens the chat with a recipient from the Recipients page', async () => {
     mockApi({
       ...ME,
       'GET /api/recipients': {
@@ -185,13 +248,15 @@ describe('Messenger', () => {
           ],
         },
       },
-      'GET /api/messenger/conversations': { body: { items: [ANA] } },
+      [PEOPLE]: { body: { items: [ANA] } },
       [CHAT_ANA]: { body: { items: [HELLO] } },
     })
-    renderMessenger('/recipients')
+    renderShell('/recipients')
 
-    await userEvent.click(await screen.findByRole('link', { name: 'Message Ana Kovač' }))
-    expect(await screen.findByRole('region', { name: 'Chat with Ana Kovač' })).toBeInTheDocument()
-    expect(await screen.findByText('Hello Ana')).toBeInTheDocument()
+    await userEvent.click(await screen.findByRole('button', { name: 'Message Ana Kovač' }))
+    const chat = await screen.findByRole('region', { name: 'Chat with Ana Kovač' })
+    expect(await within(chat).findByText('Hello Ana')).toBeInTheDocument()
+    // Still on the Recipients page
+    expect(screen.getByRole('heading', { name: 'Recipients' })).toBeInTheDocument()
   })
 })

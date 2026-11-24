@@ -78,7 +78,7 @@ describe('Users', () => {
     renderUsers()
 
     expect(await screen.findByText('home page')).toBeInTheDocument()
-    expect(fetchMock).toHaveBeenCalledTimes(1) // only /auth/me
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/admin/'))).toBe(false)
     await userEvent.click(screen.getByRole('button', { name: 'Apps' }))
     expect(screen.queryByRole('link', { name: 'Users' })).not.toBeInTheDocument()
   })

@@ -1,10 +1,10 @@
 import { useState } from 'react'
-import { Link } from 'react-router-dom'
 import { recipientsApi } from '../api'
 import type { Recipient, RecipientInput } from '../api'
 import { ConfirmDialog, FormModal } from '../common/Modal'
 import ViewToggle from '../common/ViewToggle'
 import { Icon } from '../common/icons'
+import { useMessenger } from '../common/messengerContext'
 import { useCollection } from '../common/useCollection'
 import { useViewMode } from '../common/useViewMode'
 
@@ -71,20 +71,22 @@ export default function Recipients() {
   const [editing, setEditing] = useState<Recipient | 'new' | null>(null)
   const [deleting, setDeleting] = useState<Recipient | null>(null)
   const [mode, setMode] = useViewMode('recipients', 'list')
+  const messenger = useMessenger()
 
   const fullName = (recipient: Recipient) => `${recipient.first_name} ${recipient.last_name}`.trim()
 
   function actions(recipient: Recipient) {
     return (
       <>
-        <Link
-          to={`/messenger?with=${encodeURIComponent(recipient.email)}`}
-          className="button icon-button"
+        <button
+          type="button"
+          className="icon-button"
           aria-label={`Message ${fullName(recipient)}`}
           title="Message"
+          onClick={() => messenger.open(recipient.email)}
         >
           <Icon name="chat" />
-        </Link>
+        </button>
         <button
           type="button"
           className="icon-button"

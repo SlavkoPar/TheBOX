@@ -1,4 +1,4 @@
-import { useEffect, useId, useRef, useState } from 'react'
+import { useCallback, useEffect, useId, useMemo, useRef, useState } from 'react'
 import type { ReactNode } from 'react'
 import { Link, Outlet, useLocation } from 'react-router-dom'
 import { errorMessage } from '../api'
@@ -6,6 +6,8 @@ import { appForPath, appsFor } from '../apps'
 import { useAuth } from '../auth'
 import { Icon } from '../common/icons'
 import type { IconName } from '../common/icons'
+import { MessengerContext, useMessenger } from '../common/messengerContext'
+import MessengerPanel from './MessengerPanel'
 
 type MenuProps = {
   label: string
@@ -60,6 +62,7 @@ function HeaderMenu({ label, icon, children }: MenuProps) {
 function AppsMenu() {
   const { pathname } = useLocation()
   const { user } = useAuth()
+  const messenger = useMessenger()
   const current = appForPath(pathname)
 
   return (
@@ -72,7 +75,14 @@ function AppsMenu() {
               to={app.path}
               className={`app-link app-${app.id}`}
               aria-current={current?.id === app.id ? 'page' : undefined}
-              onClick={close}
+              onClick={(event) => {
+                close()
+                // The Messenger opens as a panel over the page you are on
+                if (app.id === 'messenger') {
+                  event.preventDefault()
+                  messenger.open()
+                }
+              }}
             >
               <span className="app-icon">
                 <Icon name={app.icon} size={24} />
@@ -123,8 +133,18 @@ function ProfileMenu() {
 export default function AppLayout() {
   const { pathname } = useLocation()
   const current = appForPath(pathname)
+  const [chat, setChat] = useState({ open: false, peer: '' })
+
+  const openChat = useCallback(
+    // Without an address the panel opens where it was left
+    (email?: string) => setChat((was) => ({ open: true, peer: email ?? was.peer })),
+    [],
+  )
+  const closeChat = useCallback(() => setChat((was) => ({ ...was, open: false })), [])
+  const messenger = useMemo(() => ({ open: openChat, close: closeChat }), [openChat, closeChat])
 
   return (
+    <MessengerContext.Provider value={messenger}>
     <div className="shell">
       <header className="shell-header">
         <Link to="/" className="brand">
@@ -139,6 +159,7 @@ export default function AppLayout() {
           </span>
         )}
         <span className="spacer" />
+        <MessengerPanel open={chat.open} peer={chat.peer} onOpen={openChat} onClose={closeChat} />
         <AppsMenu />
         <ProfileMenu />
       </header>
@@ -146,5 +167,6 @@ export default function AppLayout() {
         <Outlet />
       </main>
     </div>
+    </MessengerContext.Provider>
   )
 }
