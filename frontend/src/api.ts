@@ -156,6 +156,32 @@ export const REPEAT_LABELS: Record<Repeat, string> = {
   yearly: 'Every year',
 }
 
+// --- Messenger ------------------------------------------------------------------
+
+export type ChatMessage = { id: number; body: string; created_at: string; mine: boolean }
+
+/** Someone to chat with: a recipient, or a person who wrote first (no recipient_id). */
+export type Conversation = {
+  email: string
+  name: string
+  recipient_id: number | null
+  unread: number
+  last: ChatMessage | null
+}
+
+export const messengerApi = {
+  conversations: () =>
+    request<{ items: Conversation[] }>('GET', '/messenger/conversations').then((data) => data.items),
+  /** The chat with one address; with `after`, only messages newer than that id. */
+  messages: (email: string, after = 0) =>
+    request<{ items: ChatMessage[] }>(
+      'GET',
+      `/messenger/messages?with=${encodeURIComponent(email)}${after ? `&after=${after}` : ''}`,
+    ).then((data) => data.items),
+  send: (to: string, body: string) => request<ChatMessage>('POST', '/messenger/messages', { to, body }),
+  remove: (id: number) => request<null>('DELETE', `/messenger/messages/${id}`),
+}
+
 // --- Tasks ------------------------------------------------------------------------
 
 export type TaskInput = {

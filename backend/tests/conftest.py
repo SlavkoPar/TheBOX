@@ -5,6 +5,7 @@ import pytest
 from app import auth as auth_module
 from app import events as events_module
 from app import files as files_module
+from app import messenger as messenger_module
 from app import packages as packages_module
 from app import reminders as reminders_module
 from app import create_app
@@ -47,6 +48,7 @@ def outbox(monkeypatch):
         auth_module,
         events_module,
         files_module,
+        messenger_module,
         packages_module,
         reminders_module,
     ):

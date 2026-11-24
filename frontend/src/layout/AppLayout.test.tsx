@@ -38,6 +38,7 @@ describe('AppLayout', () => {
       'Calendar',
       'Packages',
       'Recipients',
+      'Messenger',
     ])
     for (const link of links) expect(link.querySelector('svg')).not.toBeNull()
   })

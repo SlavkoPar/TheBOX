@@ -27,6 +27,7 @@ def create_app(config_object=Config):
     from .common import ApiError
     from .events import events
     from .files import files_blueprint, shared, storage
+    from .messenger import messenger
     from .packages import packages
     from .recipients import recipients
     from .routes import api
@@ -42,6 +43,7 @@ def create_app(config_object=Config):
     app.register_blueprint(files_blueprint("drive"), url_prefix="/api/drive")
     app.register_blueprint(files_blueprint("photos"), url_prefix="/api/photos")
     app.register_blueprint(packages, url_prefix="/api/packages")
+    app.register_blueprint(messenger, url_prefix="/api/messenger")
     app.register_blueprint(shared, url_prefix="/api/shared")
     app.register_blueprint(storage, url_prefix="/api/storage")
 

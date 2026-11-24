@@ -1,4 +1,5 @@
 import { useState } from 'react'
+import { Link } from 'react-router-dom'
 import { recipientsApi } from '../api'
 import type { Recipient, RecipientInput } from '../api'
 import { ConfirmDialog, FormModal } from '../common/Modal'
@@ -76,6 +77,14 @@ export default function Recipients() {
   function actions(recipient: Recipient) {
     return (
       <>
+        <Link
+          to={`/messenger?with=${encodeURIComponent(recipient.email)}`}
+          className="button icon-button"
+          aria-label={`Message ${fullName(recipient)}`}
+          title="Message"
+        >
+          <Icon name="chat" />
+        </Link>
         <button
           type="button"
           className="icon-button"
@@ -103,7 +112,7 @@ export default function Recipients() {
       <div className="page-header">
         <div>
           <h2>Recipients</h2>
-          <p className="hint">People you can send links to from Drive and Photos.</p>
+          <p className="hint">People you can send links to from Drive and Photos, and chat with in Messenger.</p>
         </div>
         <div className="toolbar">
           <ViewToggle mode={mode} onChange={setMode} />

@@ -3,6 +3,7 @@ from sqlalchemy import text
 
 from .auth import current_user, login_required
 from .extensions import db
+from .messenger import unread_count
 from .models import Event, File, Folder, Package, Recipient, Task, User, utcnow
 
 api = Blueprint("api", __name__)
@@ -64,6 +65,7 @@ def summary():
         "calendar": {"events": _count(Event, mine(Event))},
         "packages": {"packages": _count(Package, mine(Package))},
         "recipients": {"recipients": _count(Recipient, mine(Recipient))},
+        "messenger": {"unread": unread_count(user)},
     }
     if user.is_admin:
         result["users"] = {"users": _count(User)}

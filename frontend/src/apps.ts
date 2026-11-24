@@ -19,6 +19,7 @@ export const APPS: AppInfo[] = [
   { id: 'calendar', name: 'Calendar', path: '/calendar', icon: 'calendar', description: 'Events and email reminders' },
   { id: 'packages', name: 'Packages', path: '/packages', icon: 'packages', description: 'Files sent to recipients' },
   { id: 'recipients', name: 'Recipients', path: '/recipients', icon: 'recipients', description: 'People you share with' },
+  { id: 'messenger', name: 'Messenger', path: '/messenger', icon: 'chat', description: 'Chat with your recipients' },
   { id: 'users', name: 'Users', path: '/users', icon: 'user', description: 'Everyone who registered', adminOnly: true },
 ]
 
@@ -51,6 +52,8 @@ export function countsFor(appId: string, summary: Summary | null): string {
       return plural(n('packages'), 'package')
     case 'recipients':
       return plural(n('recipients'), 'recipient')
+    case 'messenger':
+      return n('unread') ? `${n('unread')} unread` : 'No new messages'
     case 'users':
       return plural(n('users'), 'user')
     default:

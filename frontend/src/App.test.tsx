@@ -24,7 +24,7 @@ describe('App', () => {
     expect(await screen.findByText('Hello!')).toBeInTheDocument()
     // One tile per app
     const tiles = screen.getByRole('navigation', { name: 'Your apps' })
-    expect(tiles.querySelectorAll('a')).toHaveLength(6)
+    expect(tiles.querySelectorAll('a')).toHaveLength(7)
   })
 
   it('shows on each tile how many items the app holds', async () => {
@@ -39,6 +39,7 @@ describe('App', () => {
           calendar: { events: 0 },
           packages: { packages: 1 },
           recipients: { recipients: 6 },
+          messenger: { unread: 2 },
           users: { users: 9 },
         },
       },
@@ -53,6 +54,7 @@ describe('App', () => {
     expect(tile(/^Calendar/)).toHaveTextContent('0 events')
     expect(tile(/^Packages/)).toHaveTextContent('1 package')
     expect(tile(/^Recipients/)).toHaveTextContent('6 recipients')
+    expect(tile(/^Messenger/)).toHaveTextContent('2 unread')
     // Administrators also get the Users tile
     expect(tile(/^Users/)).toHaveTextContent('9 users')
   })

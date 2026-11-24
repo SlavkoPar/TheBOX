@@ -14,6 +14,7 @@ def test_summary_is_empty_for_a_new_user(signed_in):
         "calendar": {"events": 0},
         "packages": {"packages": 0},
         "recipients": {"recipients": 0},
+        "messenger": {"unread": 0},
     }
 
 

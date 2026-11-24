@@ -408,3 +408,34 @@ class PackageSend(db.Model):
             "recipients": self.recipients,
             "items": self.items,
         }
+
+
+# --- Messenger ----------------------------------------------------------------
+
+
+class Message(db.Model):
+    """One chat message, from a user to an email address.
+
+    Addressed to the address, not to an account: whoever signs in with that
+    address reads it, also when they register after it was written.
+    """
+
+    __tablename__ = "messages"
+
+    id = db.Column(db.Integer, primary_key=True)
+    sender_id = db.Column(
+        db.Integer, db.ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True
+    )
+    to_email = db.Column(db.String(254), nullable=False, index=True)
+    body = db.Column(db.Text, nullable=False)
+    created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    # When the person it was written to first saw it.
+    read_at = db.Column(db.DateTime(timezone=True))
+
+    def to_dict(self, viewer):
+        return {
+            "id": self.id,
+            "body": self.body,
+            "created_at": iso(self.created_at),
+            "mine": self.sender_id == viewer.id,
+        }
