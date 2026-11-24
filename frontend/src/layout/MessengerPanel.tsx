@@ -32,6 +32,12 @@ function dayLabel(iso: string): string {
   return key === dateKey(today) ? 'Yesterday' : formatDate(iso)
 }
 
+/** Green dot next to the name of someone who is signed in right now. */
+function OnlineDot({ person }: { person: Conversation | undefined }) {
+  if (!person?.online) return null
+  return <span className="online-dot" role="img" aria-label="Online" title="Online" />
+}
+
 type ChatProps = {
   person: Conversation
   /** something changed that the list of people shows (unread, last message, recipients) */
@@ -285,7 +291,10 @@ export default function MessengerPanel({ open, peer, onOpen, onClose }: PanelPro
               </button>
             )}
             <div className="chat-who">
-              <strong>{peer ? (person?.name ?? peer) : 'Messenger'}</strong>
+              <strong>
+                {peer ? (person?.name ?? peer) : 'Messenger'}
+                {peer && <OnlineDot person={person} />}
+              </strong>
               <span className="hint">
                 {!peer ? 'Chat with your recipients' : person && person.name !== peer ? peer : ''}
               </span>
@@ -337,7 +346,10 @@ export default function MessengerPanel({ open, peer, onOpen, onClose }: PanelPro
                   <li key={other.email}>
                     <button type="button" className="chat-person" onClick={() => onOpen(other.email)}>
                       <span className="chat-person-top">
-                        <strong>{other.name}</strong>
+                        <strong>
+                          {other.name}
+                          <OnlineDot person={other} />
+                        </strong>
                         {other.unread > 0 && (
                           <span className="badge unread" aria-label={`${other.unread} unread`}>
                             {other.unread}

@@ -27,6 +27,8 @@ class User(db.Model):
     is_confirmed = db.Column(db.Boolean, nullable=False, default=False)
     confirmed_at = db.Column(db.DateTime(timezone=True))
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
+    # Last request made while signed in; cleared on sign-out. Says who is online.
+    last_seen_at = db.Column(db.DateTime(timezone=True))
 
     def set_password(self, password):
         self.password_hash = generate_password_hash(password)

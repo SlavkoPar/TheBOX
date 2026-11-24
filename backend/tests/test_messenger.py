@@ -44,8 +44,8 @@ def test_recipients_are_the_friends(signed_in):
     add_recipient(signed_in, ME, "Myself")  # nobody chats with themselves
 
     assert people(signed_in) == [
-        {"email": "ana@example.com", "name": "Ana Kovač", "recipient_id": ana["id"], "unread": 0, "last": None},
-        {"email": "zoe@example.com", "name": "Zoe", "recipient_id": people(signed_in)[1]["recipient_id"], "unread": 0, "last": None},
+        {"email": "ana@example.com", "name": "Ana Kovač", "recipient_id": ana["id"], "unread": 0, "last": None, "online": False},
+        {"email": "zoe@example.com", "name": "Zoe", "recipient_id": people(signed_in)[1]["recipient_id"], "unread": 0, "last": None, "online": False},
     ]
 
 
@@ -206,3 +206,28 @@ def test_message_is_kept_when_the_email_cannot_be_sent(signed_in, monkeypatch):
     add_recipient(signed_in, "ana@example.com")
     assert send(signed_in, "ana@example.com", "Hi").status_code == 201
     assert [m["body"] for m in chat(signed_in, "ana@example.com")] == ["Hi"]
+
+
+def test_people_who_are_signed_in_show_as_online(app, signed_in, other):
+    from app.models import User
+
+    add_recipient(signed_in, OTHER, "Olga")
+    add_recipient(signed_in, "nobody@example.com", "Nobody")
+    online = lambda: {p["email"]: p["online"] for p in people(signed_in)}  # noqa: E731
+
+    # Olga signed in a moment ago; the other address has no account
+    assert online() == {OTHER: True, "nobody@example.com": False}
+
+    # No request from her browser for a while: offline
+    olga = db.session.scalar(db.select(User).where(User.email == OTHER))
+    olga.last_seen_at = utcnow() - timedelta(minutes=5)
+    db.session.commit()
+    assert online()[OTHER] is False
+
+    # Any request while signed in brings her back
+    other.get("/api/auth/me")
+    assert online()[OTHER] is True
+
+    # Signing out takes her offline at once
+    assert other.post("/api/auth/logout").status_code == 204
+    assert online()[OTHER] is False

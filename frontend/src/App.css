@@ -1864,3 +1864,14 @@ label.check,
   max-height: 140px;
   resize: vertical;
 }
+
+.online-dot {
+  display: inline-block;
+  width: 9px;
+  height: 9px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: #2f9e44;
+  box-shadow: 0 0 0 2px var(--bg);
+  vertical-align: middle;
+}

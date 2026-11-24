@@ -1,4 +1,5 @@
 import re
+from datetime import timedelta, timezone
 from functools import wraps
 
 from flask import Blueprint, current_app, jsonify, request, session
@@ -67,11 +68,39 @@ def current_user():
     return db.session.get(User, user_id) if user_id else None
 
 
+# A signed-in user is online while their browser keeps asking the server for
+# something (the Messenger checks for new messages at least every 30 seconds).
+ONLINE_FOR = timedelta(seconds=90)
+# How stale last_seen_at may get before it is written again.
+SEEN_EVERY = timedelta(seconds=20)
+
+
+def _aware(moment):
+    return moment.replace(tzinfo=timezone.utc) if moment.tzinfo is None else moment
+
+
+def is_online(user):
+    return (
+        bool(user.is_confirmed)
+        and user.last_seen_at is not None
+        and _aware(user.last_seen_at) > utcnow() - ONLINE_FOR
+    )
+
+
+def _mark_seen(user):
+    now = utcnow()
+    if user.last_seen_at is None or _aware(user.last_seen_at) < now - SEEN_EVERY:
+        user.last_seen_at = now
+        db.session.commit()
+
+
 def login_required(view):
     @wraps(view)
     def wrapped(*args, **kwargs):
-        if current_user() is None:
+        user = current_user()
+        if user is None:
             return error("Authentication required.", 401)
+        _mark_seen(user)
         return view(*args, **kwargs)
 
     return wrapped
@@ -157,11 +186,16 @@ def login():
     session.clear()
     session["user_id"] = user.id
     session.permanent = True
+    _mark_seen(user)
     return jsonify(user=user.to_dict())
 
 
 @auth.post("/logout")
 def logout():
+    user = current_user()
+    if user is not None and user.last_seen_at is not None:
+        user.last_seen_at = None  # offline at once, not after the timeout
+        db.session.commit()
     session.clear()
     return "", 204
 

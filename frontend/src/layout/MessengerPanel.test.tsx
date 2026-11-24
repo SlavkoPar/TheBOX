@@ -58,7 +58,7 @@ describe('Messenger panel', () => {
   })
 
   it('slides in over the current page, lists the recipients, and closes again', async () => {
-    mockApi({ ...ME, [PEOPLE]: { body: { items: [ANA, BOB] } } })
+    mockApi({ ...ME, [PEOPLE]: { body: { items: [ANA, { ...BOB, online: true }] } } })
     renderShell()
     const user = userEvent.setup()
 
@@ -71,6 +71,9 @@ describe('Messenger panel', () => {
     expect(within(ana).getByLabelText('1 unread')).toHaveTextContent('1')
     expect(ana).toHaveTextContent('Hi there')
     expect(within(chats).getByRole('button', { name: /Bob/ })).toHaveTextContent('No messages yet')
+    // Bob is signed in right now, Ana is not
+    expect(within(within(chats).getByRole('button', { name: /Bob/ })).getByRole('img', { name: 'Online' })).toBeInTheDocument()
+    expect(within(ana).queryByRole('img', { name: 'Online' })).not.toBeInTheDocument()
 
     await user.click(within(panel).getByRole('button', { name: 'Close Messenger' }))
     expect(screen.queryByRole('complementary', { name: 'Messenger' })).not.toBeInTheDocument()

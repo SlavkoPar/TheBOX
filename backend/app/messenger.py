@@ -15,7 +15,7 @@ from urllib.parse import quote
 from flask import Blueprint, current_app, jsonify, request
 from sqlalchemy.orm import aliased
 
-from .auth import current_user, login_required
+from .auth import ONLINE_FOR, current_user, login_required
 from .common import ApiError, Email, Str, as_utc, json_body
 from .extensions import db
 from .mail import send_email
@@ -75,7 +75,14 @@ def conversations():
     def person(email):
         return people.setdefault(
             email,
-            {"email": email, "name": email, "recipient_id": None, "unread": 0, "last": None},
+            {
+                "email": email,
+                "name": email,
+                "recipient_id": None,
+                "unread": 0,
+                "last": None,
+                "online": False,
+            },
         )
 
     recipients = db.session.scalars(db.select(Recipient).where(Recipient.user_id == user.id))
@@ -109,6 +116,17 @@ def conversations():
         emails = {last_id: email for email, last_id in last_ids.items()}
         for message in db.session.scalars(db.select(Message).where(Message.id.in_(emails))):
             person(emails[message.id])["last"] = message.to_dict(user)
+
+    if people:
+        online = db.session.scalars(
+            db.select(User.email).where(
+                User.email.in_(people),
+                User.is_confirmed.is_(True),
+                User.last_seen_at > utcnow() - ONLINE_FOR,
+            )
+        )
+        for email in online:
+            people[email]["online"] = True
 
     items = sorted(people.values(), key=lambda p: p["name"].lower())
     items.sort(key=lambda p: p["last"]["id"] if p["last"] else 0, reverse=True)

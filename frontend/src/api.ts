@@ -167,6 +167,8 @@ export type Conversation = {
   recipient_id: number | null
   unread: number
   last: ChatMessage | null
+  /** signed in to TheBOX right now */
+  online?: boolean
 }
 
 export const messengerApi = {
