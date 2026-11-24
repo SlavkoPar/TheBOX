@@ -215,8 +215,14 @@ def test_people_who_are_signed_in_show_as_online(app, signed_in, other):
     add_recipient(signed_in, "nobody@example.com", "Nobody")
     online = lambda: {p["email"]: p["online"] for p in people(signed_in)}  # noqa: E731
 
-    # Olga signed in a moment ago; the other address has no account
+    # Olga is signed in, but has not added this user to her recipients:
+    # nothing tells whether her address has an account
+    assert online() == {OTHER: False, "nobody@example.com": False}
+
+    # Once both have each other as recipients, they see each other online
+    add_recipient(other, ME, "Me")
     assert online() == {OTHER: True, "nobody@example.com": False}
+    assert {p["email"]: p["online"] for p in people(other)} == {ME: True}
 
     # No request from her browser for a while: offline
     olga = db.session.scalar(db.select(User).where(User.email == OTHER))

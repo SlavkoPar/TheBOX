@@ -118,11 +118,15 @@ def conversations():
             person(emails[message.id])["last"] = message.to_dict(user)
 
     if people:
+        # Only friends see each other online: the other person must have this
+        # user among their recipients too. Otherwise adding any address as a
+        # recipient would tell whether it has an account.
         online = db.session.scalars(
             db.select(User.email).where(
                 User.email.in_(people),
                 User.is_confirmed.is_(True),
                 User.last_seen_at > utcnow() - ONLINE_FOR,
+                User.id.in_(db.select(Recipient.user_id).where(Recipient.email == user.email)),
             )
         )
         for email in online:
