@@ -12,7 +12,9 @@ services:
   - type: web
     name: thebox
     runtime: docker
-    plan: free
+    # Paid instance: Render's free plan blocks the SMTP ports (25, 465, 587),
+    # so the confirmation emails could not be sent from it.
+    plan: starter
     region: frankfurt
     dockerfilePath: ./Dockerfile
     dockerContext: .
