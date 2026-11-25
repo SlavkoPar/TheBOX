@@ -1851,6 +1851,85 @@ label.check,
   }
 }
 
+.bubble-files {
+  flex: 1 1 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.bubble-files li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.bubble-files li.bubble-photo {
+  flex-wrap: wrap;
+}
+
+.bubble-file {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+  text-align: left;
+}
+
+.bubble-photo .bubble-file {
+  flex: 1 1 100%;
+}
+
+.bubble-photo img {
+  display: block;
+  max-width: 100%;
+  max-height: 180px;
+  border-radius: 8px;
+}
+
+.bubble-files small {
+  flex: 1;
+  min-width: 0;
+  font-size: 11px;
+  color: var(--text);
+  overflow-wrap: anywhere;
+}
+
+.chat-attached {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  max-height: 96px;
+  overflow-y: auto;
+}
+
+.chat-attached li {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  max-width: 100%;
+  padding: 1px 2px 1px 8px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface);
+  font-size: 13px;
+}
+
+.chat-attached li span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .chat-form {
   display: flex;
   align-items: flex-end;

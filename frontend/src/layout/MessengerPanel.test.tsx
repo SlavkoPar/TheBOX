@@ -47,6 +47,121 @@ async function openPanel(user = userEvent.setup()) {
   return screen.getByRole('complementary', { name: 'Messenger' })
 }
 
+const FILES_MESSAGE: ChatMessage = {
+  id: 5,
+  body: '',
+  created_at: '2026-11-20T09:20:00+00:00',
+  mine: false,
+  files: [
+    { id: 31, name: 'cat.png', mime_type: 'image/png', size: 2048, is_encrypted: false },
+    { id: 32, name: 'budget.xlsx', mime_type: 'application/vnd.ms-excel', size: 4096, is_encrypted: false },
+    { id: 33, name: 'secret.txt', mime_type: 'text/plain', size: 10, is_encrypted: true },
+  ],
+}
+
+describe('Files in the Messenger', () => {
+  it('shows the files of a message, to open and to download', async () => {
+    mockApi({
+      ...ME,
+      [PEOPLE]: { body: { items: [{ ...ANA, last: FILES_MESSAGE }] } },
+      [CHAT_ANA]: { body: { items: [FILES_MESSAGE] } },
+      [`${CHAT_ANA}&after=5`]: { body: { items: [] } },
+    })
+    renderShell()
+    const user = userEvent.setup()
+
+    const panel = await openPanel(user)
+    // In the list of people a message without text is told by its files
+    const ana = await within(panel).findByRole('button', { name: /Ana Kovač/ })
+    expect(ana).toHaveTextContent('cat.png and 2 more')
+    await user.click(ana)
+
+    const files = await within(panel).findByRole('list', { name: 'Files' })
+    const base = '/api/messenger/messages/5/files'
+    // A picture is shown; it opens in the browser
+    expect(within(files).getByRole('img', { name: 'cat.png' })).toHaveAttribute('src', `${base}/31/thumb`)
+    expect(within(files).getByRole('link', { name: 'Open cat.png' })).toHaveAttribute('href', `${base}/31`)
+    // What a browser cannot show is downloaded
+    expect(within(files).getByRole('link', { name: 'Open budget.xlsx' })).toHaveAttribute(
+      'href',
+      `${base}/32?download=1`,
+    )
+    expect(within(files).getByRole('link', { name: 'Download cat.png' })).toHaveAttribute(
+      'href',
+      `${base}/31?download=1`,
+    )
+    // An encrypted document asks for its password
+    await user.click(within(files).getByRole('button', { name: 'Unlock and download secret.txt' }))
+    expect(await screen.findByRole('dialog', { name: 'Unlock secret.txt' })).toHaveTextContent(
+      'Ask Ana Kovač for the password.',
+    )
+  })
+
+  it('attaches files and folders from Drive and Photos and sends them', async () => {
+    const fetchMock = mockApi({
+      ...ME,
+      [PEOPLE]: { body: { items: [BOB] } },
+      'GET /api/messenger/messages?with=bob%40example.com': { body: { items: [] } },
+      'GET /api/messenger/messages?with=bob%40example.com&after=7': { body: { items: [] } },
+      'GET /api/drive/items': {
+        body: {
+          folder: null,
+          breadcrumbs: [],
+          folders: [{ id: 4, name: 'Work', parent_id: null }],
+          files: [
+            { id: 11, name: 'report.txt', is_encrypted: false },
+            { id: 12, name: 'notes.txt', is_encrypted: false },
+          ],
+        },
+      },
+      'POST /api/messenger/messages': {
+        status: 201,
+        body: {
+          id: 7,
+          body: '',
+          created_at: '2026-11-20T09:30:00+00:00',
+          mine: true,
+          files: [{ id: 11, name: 'report.txt', mime_type: 'text/plain', size: 10, is_encrypted: false }],
+        },
+      },
+    })
+    renderShell()
+    const user = userEvent.setup()
+
+    const panel = await openPanel(user)
+    await user.click(await within(panel).findByRole('button', { name: /Bob/ }))
+    const chat = await within(panel).findByRole('region', { name: 'Chat with Bob' })
+    const sendButton = within(chat).getByRole('button', { name: 'Send' })
+    expect(sendButton).toBeDisabled()
+
+    await user.click(within(chat).getByRole('button', { name: 'Attach files' }))
+    const dialog = await screen.findByRole('dialog', { name: 'Attach files and folders' })
+    await user.click(await within(dialog).findByRole('checkbox', { name: 'Select report.txt' }))
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Select notes.txt' }))
+    await user.click(within(dialog).getByRole('checkbox', { name: 'Select folder Work' }))
+    await user.click(within(dialog).getByRole('button', { name: 'Done' }))
+
+    // What is attached waits above the message, and can be taken off again
+    const attached = within(chat).getByRole('list', { name: 'Attached' })
+    expect(within(attached).getAllByRole('listitem')).toHaveLength(3)
+    await user.click(within(attached).getByRole('button', { name: 'Remove notes.txt' }))
+
+    // Files are enough: no text is needed
+    expect(sendButton).toBeEnabled()
+    await user.click(sendButton)
+
+    const log = within(chat).getByRole('log')
+    expect(await within(log).findByRole('link', { name: 'Open report.txt' })).toBeInTheDocument()
+    expect(lastBody(fetchMock, 'POST /api/messenger/messages')).toEqual({
+      to: 'bob@example.com',
+      body: '',
+      file_ids: [11],
+      folder_ids: [4],
+    })
+    expect(within(chat).queryByRole('list', { name: 'Attached' })).not.toBeInTheDocument()
+  })
+})
+
 describe('Messenger panel', () => {
   it('shows the unread count in the header and stays closed until asked', async () => {
     mockApi({ ...ME, [PEOPLE]: { body: { items: [ANA, STRANGER] } } })

@@ -414,6 +414,12 @@ class PackageSend(db.Model):
 
 # --- Messenger ----------------------------------------------------------------
 
+message_files = db.Table(
+    "message_files",
+    db.Column("message_id", db.ForeignKey("messages.id", ondelete="CASCADE"), primary_key=True),
+    db.Column("file_id", db.ForeignKey("files.id", ondelete="CASCADE"), primary_key=True),
+)
+
 
 class Message(db.Model):
     """One chat message, from a user to an email address.
@@ -433,6 +439,12 @@ class Message(db.Model):
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
     # When the person it was written to first saw it.
     read_at = db.Column(db.DateTime(timezone=True))
+
+    # Files of the sender (Drive and Photos) sent along. They are not copied:
+    # the other side reads the sender's files for as long as the message exists.
+    files = db.relationship(
+        "File", secondary=message_files, backref="messages", lazy="selectin"
+    )
 
     def to_dict(self, viewer):
         return {

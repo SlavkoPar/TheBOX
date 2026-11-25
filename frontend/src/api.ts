@@ -161,7 +161,20 @@ export const REPEAT_LABELS: Record<Repeat, string> = {
 
 // --- Messenger ------------------------------------------------------------------
 
-export type ChatMessage = { id: number; body: string; created_at: string; mine: boolean }
+/** A file of the sender's Drive or Photos, sent with a message. */
+export type ChatFile = { id: number; name: string; mime_type: string; size: number; is_encrypted: boolean }
+
+export type ChatMessage = {
+  id: number
+  /** '' when only files were sent */
+  body: string
+  created_at: string
+  mine: boolean
+  files?: ChatFile[]
+}
+
+/** What to send along: files, and folders (the files in them at that moment). */
+export type ChatAttachments = { file_ids: number[]; folder_ids: number[] }
 
 /** Someone to chat with: a recipient, or a person who wrote first (no recipient_id). */
 export type Conversation = {
@@ -183,8 +196,16 @@ export const messengerApi = {
       'GET',
       `/messenger/messages?with=${encodeURIComponent(email)}${after ? `&after=${after}` : ''}`,
     ).then((data) => data.items),
-  send: (to: string, body: string) => request<ChatMessage>('POST', '/messenger/messages', { to, body }),
+  send: (to: string, body: string, attachments?: ChatAttachments) =>
+    request<ChatMessage>('POST', '/messenger/messages', { to, body, ...attachments }),
   remove: (id: number) => request<null>('DELETE', `/messenger/messages/${id}`),
+  /** URL of a file sent with a message, for links and new tabs (unencrypted files only). */
+  fileUrl: (messageId: number, fileId: number, download = false) =>
+    `/api/messenger/messages/${messageId}/files/${fileId}${download ? '?download=1' : ''}`,
+  thumbUrl: (messageId: number, fileId: number) =>
+    `/api/messenger/messages/${messageId}/files/${fileId}/thumb`,
+  decrypted: (messageId: number, fileId: number, password: string) =>
+    requestBlob('POST', `/messenger/messages/${messageId}/files/${fileId}`, { password }),
 }
 
 // --- Tasks ------------------------------------------------------------------------

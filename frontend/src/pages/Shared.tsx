@@ -6,19 +6,8 @@ import { PromptDialog } from '../common/Modal'
 import ViewToggle from '../common/ViewToggle'
 import { formatBytes, formatDate, saveBlob } from '../common/format'
 import { Icon } from '../common/icons'
+import { VIEWABLE_TYPES as VIEWABLE } from '../common/items'
 import { useViewMode } from '../common/useViewMode'
-
-// Types the server lets a browser display; everything else is download-only.
-const VIEWABLE = [
-  'image/png',
-  'image/jpeg',
-  'image/gif',
-  'image/webp',
-  'image/bmp',
-  'image/avif',
-  'application/pdf',
-  'text/plain',
-]
 
 /** Public page behind an emailed link (a share or a package): view or download the files. No sign-in. */
 export default function Shared() {

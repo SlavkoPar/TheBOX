@@ -7,6 +7,10 @@ endpoints never tell whether an address belongs to an account.
 
 Anyone who received a message can answer it, also when the sender is not among
 their own recipients.
+
+A message can carry files from the sender's Drive and Photos. They are not
+copied: the other side views and downloads the sender's files through the
+message, until the message or the file is deleted.
 """
 
 from datetime import timedelta
@@ -16,21 +20,33 @@ from flask import Blueprint, current_app, jsonify, request
 from sqlalchemy.orm import aliased
 
 from .auth import ONLINE_FOR, current_user, login_required
-from .common import ApiError, Email, Str, as_utc, json_body
+from .common import ApiError, Email, Str, as_utc, get_owned, id_list, json_body
 from .extensions import db
+from .files import (
+    file_content,
+    files_inside,
+    in_trash,
+    is_active,
+    password_from,
+    send_content,
+    send_thumb,
+    wants_download,
+)
 from .mail import send_email
-from .models import Message, Recipient, User, utcnow
+from .models import File, Folder, Message, Recipient, User, utcnow
 
 messenger = Blueprint("messenger", __name__)
 
 MAX_BODY = 4000
+# Most files one message can carry (a folder counts as the files in it).
+MAX_FILES = 100
 # Most recent messages returned when a chat is opened.
 PAGE = 500
 # Someone who read or wrote in a chat this recently is taken to be looking at it.
 ACTIVE_FOR = timedelta(minutes=10)
 
 TO = Email(required=True, label="Recipient")
-BODY = Str(required=True, max_len=MAX_BODY, label="Message")
+BODY = Str(max_len=MAX_BODY, label="Message")
 
 
 def _incoming(user, sender_email=None):
@@ -49,6 +65,52 @@ def _peer(user):
     if email == user.email:
         raise ApiError("You cannot chat with yourself.")
     return email
+
+
+def _attached(message):
+    """The files sent with a message that still exist, by name."""
+    return sorted((f for f in message.files if is_active(f)), key=lambda f: (f.name.lower(), f.id))
+
+
+def message_dict(message, viewer):
+    return {
+        **message.to_dict(viewer),
+        "files": [
+            {
+                "id": file.id,
+                "name": file.name,
+                "mime_type": file.mime_type,
+                "size": file.size,
+                "is_encrypted": file.is_encrypted,
+            }
+            for file in _attached(message)
+        ],
+    }
+
+
+def _files_to_send(data):
+    """The sender's files named in the request: `file_ids`, and what is in `folder_ids`.
+
+    A folder stands for the files in it (and its subfolders) at this moment.
+    """
+    files = {}
+    for file_id in id_list(data, "file_ids", "Files") if "file_ids" in data else []:
+        file = get_owned(File, file_id, "File not found.")
+        if not is_active(file):
+            raise ApiError("File not found.", 404)
+        files[file.id] = file
+    folder_ids = id_list(data, "folder_ids", "Folders") if "folder_ids" in data else []
+    for folder_id in folder_ids:
+        folder = get_owned(Folder, folder_id, "Folder not found.")
+        if in_trash(folder):
+            raise ApiError("Folder not found.", 404)
+        for file in files_inside(folder):
+            files.setdefault(file.id, file)
+    if folder_ids and not files:
+        raise ApiError("The selected folders contain no files to send.")
+    if len(files) > MAX_FILES:
+        raise ApiError(f"A message can carry at most {MAX_FILES} files.")
+    return list(files.values())
 
 
 def _may_write(user, email):
@@ -115,7 +177,7 @@ def conversations():
     if last_ids:
         emails = {last_id: email for email, last_id in last_ids.items()}
         for message in db.session.scalars(db.select(Message).where(Message.id.in_(emails))):
-            person(emails[message.id])["last"] = message.to_dict(user)
+            person(emails[message.id])["last"] = message_dict(message, user)
 
     if people:
         # Only friends see each other online: the other person must have this
@@ -163,28 +225,32 @@ def list_messages():
         message.read_at = now
     if unread:
         db.session.commit()
-    return jsonify(items=[m.to_dict(user) for m in found])
+    return jsonify(items=[message_dict(m, user) for m in found])
 
 
 @messenger.post("/messages")
 @login_required
 def send_message():
+    """`to` and `body`; `file_ids` and `folder_ids` send the user's own files along."""
     user = current_user()
     data = json_body()
     email = TO.parse("to", data.get("to"))
     body = BODY.parse("body", data.get("body"))
+    files = _files_to_send(data)
+    if not body and not files:
+        raise ApiError("Write a message or attach a file.")
     if email == user.email:
         raise ApiError("You cannot write to yourself.")
     if not _may_write(user, email):
         raise ApiError("Add this person to your recipients to write to them.", 403, "not_a_friend")
 
     notify = _should_notify(user, email)
-    message = Message(sender_id=user.id, to_email=email, body=body)
+    message = Message(sender_id=user.id, to_email=email, body=body, files=files)
     db.session.add(message)
     db.session.commit()
     if notify:
         _notify(user, email)
-    return jsonify(message.to_dict(user)), 201
+    return jsonify(message_dict(message, user)), 201
 
 
 @messenger.delete("/messages/<int:message_id>")
@@ -197,6 +263,43 @@ def delete_message(message_id):
     db.session.delete(message)
     db.session.commit()
     return "", 204
+
+
+# --- Files sent with a message ------------------------------------------------------
+
+
+def _sent_file(message_id, file_id):
+    """A file of a message, for the one who sent it and the one it was written to."""
+    user = current_user()
+    message = db.session.get(Message, message_id)
+    if message is not None and (message.sender_id == user.id or message.to_email == user.email):
+        for file in _attached(message):
+            if file.id == file_id:
+                return file
+    raise ApiError("File not found.", 404)
+
+
+@messenger.get("/messages/<int:message_id>/files/<int:file_id>")
+@login_required
+def sent_content(message_id, file_id):
+    """View (inline) or, with ?download=1, download a file sent in a message."""
+    file = _sent_file(message_id, file_id)
+    return send_content(file, file_content(file), wants_download())
+
+
+@messenger.post("/messages/<int:message_id>/files/<int:file_id>")
+@login_required
+def sent_encrypted_content(message_id, file_id):
+    """Same as GET, with the password for an encrypted document in the body."""
+    file = _sent_file(message_id, file_id)
+    password = password_from(json_body()) if file.is_encrypted else None
+    return send_content(file, file_content(file, password), wants_download())
+
+
+@messenger.get("/messages/<int:message_id>/files/<int:file_id>/thumb")
+@login_required
+def sent_thumb(message_id, file_id):
+    return send_thumb(_sent_file(message_id, file_id))
 
 
 # --- Email notice -----------------------------------------------------------------

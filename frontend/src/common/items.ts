@@ -19,4 +19,16 @@ export function locationOf(item: { app: FileApp; path: string }): string {
   return [FILE_APP_NAMES[item.app], item.path].filter(Boolean).join(' / ')
 }
 
+/** Types the server lets a browser display; everything else is download-only. */
+export const VIEWABLE_TYPES = [
+  'image/png',
+  'image/jpeg',
+  'image/gif',
+  'image/webp',
+  'image/bmp',
+  'image/avif',
+  'application/pdf',
+  'text/plain',
+]
+
 export const itemKey = (item: Pick<PickedItem, 'kind' | 'id'>) => `${item.kind}-${item.id}`

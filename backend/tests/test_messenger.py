@@ -208,6 +208,123 @@ def test_message_is_kept_when_the_email_cannot_be_sent(signed_in, monkeypatch):
     assert [m["body"] for m in chat(signed_in, "ana@example.com")] == ["Hi"]
 
 
+def attach(client, to, body="", **ids):
+    return client.post("/api/messenger/messages", json={"to": to, "body": body, **ids})
+
+
+def test_files_are_sent_with_a_message(signed_in, other):
+    from test_files import PNG, new_folder, uploaded
+
+    add_recipient(signed_in, OTHER)
+    doc = uploaded(signed_in, name="report.txt", content=b"the report")
+    photo = uploaded(signed_in, app_name="photos", name="cat.png", content=PNG)
+
+    sent = attach(signed_in, OTHER, "Here they are", file_ids=[doc["id"], photo["id"]])
+    assert sent.status_code == 201
+    message = sent.get_json()
+    assert [f["name"] for f in message["files"]] == ["cat.png", "report.txt"]
+    assert message["files"][1] == {
+        "id": doc["id"],
+        "name": "report.txt",
+        "mime_type": "text/plain",
+        "size": 10,
+        "is_encrypted": False,
+    }
+
+    # The other side sees them in the chat and in the list of people
+    (received,) = chat(other, ME)
+    assert received["body"] == "Here they are" and received["files"] == message["files"]
+    assert people(other)[0]["last"]["files"] == message["files"]
+
+    # ... and opens them through the message, although the files are not theirs
+    base = f"/api/messenger/messages/{message['id']}/files"
+    assert other.get(f"/api/drive/files/{doc['id']}/content").status_code == 404
+    opened = other.get(f"{base}/{doc['id']}")
+    assert opened.status_code == 200 and opened.data == b"the report"
+    assert "attachment" in other.get(f"{base}/{doc['id']}?download=1").headers["Content-Disposition"]
+    assert other.get(f"{base}/{photo['id']}/thumb").status_code == 200
+    assert signed_in.get(f"{base}/{doc['id']}").data == b"the report"
+
+    # Files alone are a message too; a folder sends what is in it now
+    folder = new_folder(signed_in, "Work")
+    sub = new_folder(signed_in, "Old", folder["id"])
+    uploaded(signed_in, name="a.txt", folder_id=folder["id"])
+    uploaded(signed_in, name="b.txt", folder_id=sub["id"])
+    only = attach(signed_in, OTHER, folder_ids=[folder["id"]]).get_json()
+    assert only["body"] == "" and [f["name"] for f in only["files"]] == ["a.txt", "b.txt"]
+    uploaded(signed_in, name="later.txt", folder_id=folder["id"])
+    assert [f["name"] for f in chat(other, ME)[-1]["files"]] == ["a.txt", "b.txt"]
+
+
+def test_only_the_two_sides_reach_the_files_of_a_message(app, signed_in, other, outbox):
+    from test_admin import sign_in
+    from test_files import uploaded
+
+    add_recipient(signed_in, OTHER)
+    doc = uploaded(signed_in, name="report.txt")
+    untold = uploaded(signed_in, name="untold.txt")
+    message = attach(signed_in, OTHER, file_ids=[doc["id"]]).get_json()
+    base = f"/api/messenger/messages/{message['id']}/files"
+
+    assert app.test_client().get(f"{base}/{doc['id']}").status_code == 401
+    # A file that was not sent stays out of reach
+    assert other.get(f"{base}/{untold['id']}").status_code == 404
+    assert other.get(f"{base}/{untold['id']}/thumb").status_code == 404
+    # A third person reaches nothing
+    third = sign_in(app, outbox, {"email": "third@example.com", "password": "third horse 1"})
+    assert third.get(f"{base}/{doc['id']}").status_code == 404
+    assert third.post(f"{base}/{doc['id']}", json={}).status_code == 404
+
+    # Nobody sends files that are not their own
+    theirs = uploaded(other, name="theirs.txt")
+    add_recipient(third, OTHER)
+    assert attach(third, OTHER, file_ids=[doc["id"]]).status_code == 404
+    assert attach(signed_in, OTHER, file_ids=[theirs["id"]]).status_code == 404
+    assert attach(signed_in, OTHER, file_ids="all").status_code == 400
+    assert attach(signed_in, OTHER).status_code == 400  # neither text nor files
+
+
+def test_files_go_when_the_message_or_the_file_is_deleted(signed_in, other):
+    from test_files import new_folder, uploaded
+
+    add_recipient(signed_in, OTHER)
+    doc = uploaded(signed_in, name="report.txt")
+    kept = uploaded(signed_in, name="kept.txt")
+    message = attach(signed_in, OTHER, "Two files", file_ids=[doc["id"], kept["id"]]).get_json()
+    base = f"/api/messenger/messages/{message['id']}/files"
+
+    # In the trash: gone from the chat
+    assert signed_in.delete(f"/api/drive/files/{doc['id']}").status_code == 204
+    assert [f["name"] for f in chat(other, ME)[0]["files"]] == ["kept.txt"]
+    assert other.get(f"{base}/{doc['id']}").status_code == 404
+    # Deleted for good: the message stays, with what is left
+    assert signed_in.delete(f"/api/drive/files/{doc['id']}?permanent=1").status_code == 204
+    assert [f["name"] for f in chat(other, ME)[0]["files"]] == ["kept.txt"]
+
+    # Taking the message back takes the access away, and keeps the file
+    assert signed_in.delete(f"/api/messenger/messages/{message['id']}").status_code == 204
+    assert other.get(f"{base}/{kept['id']}").status_code == 404
+    assert signed_in.get(f"/api/drive/files/{kept['id']}/content").status_code == 200
+
+    empty = new_folder(signed_in, "Empty")
+    assert attach(signed_in, OTHER, "Look", folder_ids=[empty["id"]]).status_code == 400
+
+
+def test_an_encrypted_document_needs_its_password(signed_in, other):
+    from test_files import PASSWORD, uploaded
+
+    add_recipient(signed_in, OTHER)
+    doc = uploaded(signed_in, name="secret.txt", content=b"the secret")
+    assert signed_in.post(f"/api/drive/files/{doc['id']}/encrypt", json={"password": PASSWORD}).status_code == 200
+    message = attach(signed_in, OTHER, file_ids=[doc["id"]]).get_json()
+    assert message["files"][0]["is_encrypted"] is True
+    url = f"/api/messenger/messages/{message['id']}/files/{doc['id']}"
+
+    assert other.get(url).get_json()["code"] == "encrypted"
+    assert other.post(url, json={"password": "not the one"}).get_json()["code"] == "wrong_password"
+    assert other.post(url, json={"password": PASSWORD}).data == b"the secret"
+
+
 def test_people_who_are_signed_in_show_as_online(app, signed_in, other):
     from app.models import User
 

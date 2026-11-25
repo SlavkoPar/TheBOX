@@ -2,10 +2,13 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import { Link } from 'react-router-dom'
 import { errorMessage, messengerApi, recipientsApi } from '../api'
-import type { ChatMessage, Conversation } from '../api'
-import { ConfirmDialog } from '../common/Modal'
-import { dateKey, formatDate, formatTime } from '../common/format'
+import type { ChatFile, ChatMessage, Conversation } from '../api'
+import ItemPicker from '../common/ItemPicker'
+import { ConfirmDialog, Modal, PromptDialog } from '../common/Modal'
+import { dateKey, formatBytes, formatDate, formatTime, saveBlob } from '../common/format'
 import { Icon } from '../common/icons'
+import { VIEWABLE_TYPES, itemKey, locationOf } from '../common/items'
+import type { PickedItem } from '../common/items'
 import { useAction } from '../common/useAction'
 
 /** How often new messages are asked for while the panel is open. */
@@ -32,6 +35,77 @@ function dayLabel(iso: string): string {
   return key === dateKey(today) ? 'Yesterday' : formatDate(iso)
 }
 
+/** A message in a few words: its text, or the names of the files it carries. */
+function summaryOf(message: ChatMessage): string {
+  const files = message.files ?? []
+  if (message.body) return message.body
+  if (files.length === 0) return 'Files that are no longer available'
+  return files.length === 1 ? files[0].name : `${files[0].name} and ${files.length - 1} more`
+}
+
+type SentFilesProps = {
+  message: ChatMessage
+  onUnlock: (file: ChatFile) => void
+}
+
+/** The files a message carries: pictures as previews, the rest by name; each can be downloaded. */
+function SentFiles({ message, onUnlock }: SentFilesProps) {
+  const files = message.files ?? []
+  if (files.length === 0) {
+    return message.body ? null : <span className="bubble-text hint">The files are no longer available.</span>
+  }
+  return (
+    <ul className="bubble-files" aria-label="Files">
+      {files.map((file) => {
+        const isImage = file.mime_type.startsWith('image/')
+        if (file.is_encrypted) {
+          return (
+            <li key={file.id}>
+              <button
+                type="button"
+                className="link-button bubble-file"
+                aria-label={`Unlock and download ${file.name}`}
+                onClick={() => onUnlock(file)}
+              >
+                <Icon name="lock" size={18} /> {file.name}
+              </button>
+              <small>{formatBytes(file.size)} · encrypted</small>
+            </li>
+          )
+        }
+        return (
+          <li key={file.id} className={isImage ? 'bubble-photo' : undefined}>
+            <a
+              className="bubble-file"
+              href={messengerApi.fileUrl(message.id, file.id, !VIEWABLE_TYPES.includes(file.mime_type))}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`Open ${file.name}`}
+            >
+              {isImage ? (
+                <img src={messengerApi.thumbUrl(message.id, file.id)} alt={file.name} loading="lazy" />
+              ) : (
+                <>
+                  <Icon name="file" size={18} /> {file.name}
+                </>
+              )}
+            </a>
+            <small>{isImage ? file.name : formatBytes(file.size)}</small>
+            <a
+              className="icon-button"
+              href={messengerApi.fileUrl(message.id, file.id, true)}
+              aria-label={`Download ${file.name}`}
+              title="Download"
+            >
+              <Icon name="download" size={16} />
+            </a>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
 /** Green dot next to the name of someone who is signed in right now. */
 function OnlineDot({ person }: { person: Conversation | undefined }) {
   if (!person?.online) return null
@@ -51,6 +125,10 @@ function Chat({ person, onChange }: ChatProps) {
   const [loadError, setLoadError] = useState('')
   const [text, setText] = useState('')
   const [deleting, setDeleting] = useState<ChatMessage | null>(null)
+  // Files and folders of Drive and Photos that go with the next message
+  const [attached, setAttached] = useState<PickedItem[]>([])
+  const [picking, setPicking] = useState(false)
+  const [unlocking, setUnlocking] = useState<{ message: ChatMessage; file: ChatFile } | null>(null)
   const sending = useAction()
   const adding = useAction()
   const lastId = useRef(0)
@@ -88,12 +166,15 @@ function Chat({ person, onChange }: ChatProps) {
   async function send(event?: FormEvent) {
     event?.preventDefault()
     const body = text.trim()
-    if (!body || sending.busy) return
+    if ((!body && attached.length === 0) || sending.busy) return
+    const ids = (kind: PickedItem['kind']) => attached.filter((item) => item.kind === kind).map((item) => item.id)
+    const attachments = attached.length > 0 ? { file_ids: ids('file'), folder_ids: ids('folder') } : undefined
     const sent = await sending.run(async () => {
-      add([await messengerApi.send(email, body)])
+      add([await messengerApi.send(email, body, attachments)])
     })
     if (sent) {
       setText('')
+      setAttached([])
       onChange()
     }
   }
@@ -163,7 +244,7 @@ function Chat({ person, onChange }: ChatProps) {
                     <button
                       type="button"
                       className="icon-button chat-delete"
-                      aria-label={`Delete message: ${message.body.slice(0, 40)}`}
+                      aria-label={`Delete message: ${summaryOf(message).slice(0, 40)}`}
                       title="Delete"
                       onClick={() => setDeleting(message)}
                     >
@@ -172,7 +253,8 @@ function Chat({ person, onChange }: ChatProps) {
                   )}
                   <div className="bubble">
                     <span className="visually-hidden">{message.mine ? 'You: ' : `${person.name}: `}</span>
-                    <span className="bubble-text">{message.body}</span>
+                    {message.body && <span className="bubble-text">{message.body}</span>}
+                    <SentFiles message={message} onUnlock={(file) => setUnlocking({ message, file })} />
                     <time dateTime={message.created_at}>{formatTime(message.created_at)}</time>
                   </div>
                 </div>
@@ -189,7 +271,36 @@ function Chat({ person, onChange }: ChatProps) {
         </p>
       )}
 
+      {attached.length > 0 && (
+        <ul className="chat-attached" aria-label="Attached">
+          {attached.map((item) => (
+            <li key={itemKey(item)} title={locationOf(item)}>
+              <Icon name={item.kind === 'folder' ? 'folder' : 'file'} size={16} />
+              <span>{item.name}</span>
+              <button
+                type="button"
+                className="icon-button"
+                aria-label={`Remove ${item.name}`}
+                title="Remove"
+                onClick={() => setAttached((current) => current.filter((other) => itemKey(other) !== itemKey(item)))}
+              >
+                <Icon name="close" size={14} />
+              </button>
+            </li>
+          ))}
+        </ul>
+      )}
+
       <form className="chat-form" onSubmit={send}>
+        <button
+          type="button"
+          className="icon-button"
+          aria-label="Attach files"
+          title="Attach files from Drive and Photos"
+          onClick={() => setPicking(true)}
+        >
+          <Icon name="attach" />
+        </button>
         <textarea
           aria-label={`Message to ${person.name}`}
           placeholder="Write a message…"
@@ -199,7 +310,7 @@ function Chat({ person, onChange }: ChatProps) {
           onChange={(event) => setText(event.target.value)}
           onKeyDown={onKeyDown}
         />
-        <button type="submit" disabled={!text.trim() || sending.busy}>
+        <button type="submit" disabled={(!text.trim() && attached.length === 0) || sending.busy}>
           <Icon name="send" size={18} /> Send
         </button>
       </form>
@@ -207,10 +318,45 @@ function Chat({ person, onChange }: ChatProps) {
       {deleting && (
         <ConfirmDialog
           title="Delete message"
-          message={`Delete this message for both of you? "${deleting.body.slice(0, 80)}"`}
+          message={`Delete this message for both of you? "${summaryOf(deleting).slice(0, 80)}"`}
           confirmLabel="Delete"
           onClose={() => setDeleting(null)}
           onConfirm={() => remove(deleting)}
+        />
+      )}
+
+      {picking && (
+        <Modal title="Attach files and folders" onClose={() => setPicking(false)} wide>
+          <div className="form">
+            <ItemPicker picked={attached} onChange={setAttached} />
+            <p className="hint">
+              {person.name} can view and download them here, until you delete the message or the file.
+            </p>
+            <div className="form-actions">
+              <button type="button" onClick={() => setPicking(false)}>
+                Done
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {unlocking && (
+        <PromptDialog
+          title={`Unlock ${unlocking.file.name}`}
+          label="Password"
+          type="password"
+          submitLabel="Download"
+          hint={
+            unlocking.message.mine
+              ? 'This document is encrypted. Enter its password.'
+              : `This document is encrypted. Ask ${person.name} for the password.`
+          }
+          onClose={() => setUnlocking(null)}
+          onSubmit={async (password) => {
+            const { message, file } = unlocking
+            saveBlob(await messengerApi.decrypted(message.id, file.id, password), file.name)
+          }}
         />
       )}
     </section>
@@ -357,7 +503,7 @@ export default function MessengerPanel({ open, peer, onOpen, onClose }: PanelPro
                         )}
                       </span>
                       <span className="hint chat-last">
-                        {other.last ? `${other.last.mine ? 'You: ' : ''}${other.last.body}` : 'No messages yet'}
+                        {other.last ? `${other.last.mine ? 'You: ' : ''}${summaryOf(other.last)}` : 'No messages yet'}
                       </span>
                     </button>
                   </li>
