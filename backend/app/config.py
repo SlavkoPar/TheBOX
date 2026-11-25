@@ -51,6 +51,8 @@ class Config:
     # Email confirmation
     FRONTEND_URL = _frontend_url()
     CONFIRM_TOKEN_MAX_AGE = int(os.environ.get("CONFIRM_TOKEN_MAX_AGE") or 60 * 60 * 24)
+    # Seconds a "forgot password" link stays valid.
+    RESET_TOKEN_MAX_AGE = int(os.environ.get("RESET_TOKEN_MAX_AGE") or 60 * 60)
 
     # Email addresses (comma-separated) of the administrators, who can see all registered users.
     ADMIN_EMAILS = [

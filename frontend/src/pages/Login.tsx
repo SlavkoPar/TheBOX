@@ -90,6 +90,9 @@ export default function Login() {
         Sign in
       </button>
       <p className="hint">
+        <Link to="/forgot-password">Forgot your password?</Link>
+      </p>
+      <p className="hint">
         No account yet? <Link to="/register">Create one</Link>
       </p>
     </form>

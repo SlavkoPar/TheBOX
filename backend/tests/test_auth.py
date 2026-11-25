@@ -130,3 +130,96 @@ def test_non_json_bodies_are_rejected_cleanly(client, outbox):
     assert client.post("/api/auth/register", data="not json").status_code == 400
     assert client.post("/api/auth/login", data="not json").status_code == 401
     assert client.post("/api/auth/login", json={"email": 5, "password": ["x"]}).status_code == 401
+
+
+# --- Forgotten password -----------------------------------------------------------
+
+NEW_PASSWORD = "brand new horse"
+
+
+def reset_token(outbox):
+    assert "/reset-password?token=" in outbox[-1][2]
+    return token_from(outbox)
+
+
+def test_forgot_password_sets_a_new_one(signed_in, outbox):
+    signed_in.post("/api/auth/logout")
+    outbox.clear()
+
+    r = signed_in.post("/api/auth/forgot-password", json={"email": " User@Example.com "})
+    assert r.status_code == 200
+    assert r.get_json()["message"] == auth_module.FORGOT_MESSAGE
+    assert len(outbox) == 1 and outbox[0][0] == CREDS["email"]
+    assert outbox[0][1] == "Set a new TheBOX password"
+    token = reset_token(outbox)
+
+    r = signed_in.post("/api/auth/reset-password", json={"token": token, "password": NEW_PASSWORD})
+    assert r.status_code == 200
+
+    assert signed_in.post("/api/auth/login", json=CREDS).status_code == 401  # old password
+    r = signed_in.post("/api/auth/login", json={**CREDS, "password": NEW_PASSWORD})
+    assert r.status_code == 200
+
+    # The link works once
+    r = signed_in.post("/api/auth/reset-password", json={"token": token, "password": "yet another 1"})
+    assert r.status_code == 400
+    assert r.get_json()["error"] == auth_module.RESET_INVALID
+
+
+def test_forgot_password_does_not_reveal_unknown_addresses(client, outbox):
+    r = client.post("/api/auth/forgot-password", json={"email": "nobody@example.com"})
+    assert r.status_code == 200
+    assert r.get_json()["message"] == auth_module.FORGOT_MESSAGE
+    assert outbox == []
+    assert client.post("/api/auth/forgot-password", json={}).status_code == 200
+
+
+def test_reset_password_rejects_bad_tokens_and_weak_passwords(signed_in, outbox):
+    from app.extensions import db
+    from app.models import User
+
+    signed_in.post("/api/auth/forgot-password", json={"email": CREDS["email"]})
+    token = reset_token(outbox)
+
+    def reset(**body):
+        return signed_in.post("/api/auth/reset-password", json=body)
+
+    assert reset(password=NEW_PASSWORD).status_code == 400
+    assert reset(token="nonsense", password=NEW_PASSWORD).status_code == 400
+    # A confirmation token is not a reset token
+    confirm_token = auth_module.make_confirm_token(db.session.scalar(db.select(User)))
+    assert reset(token=confirm_token, password=NEW_PASSWORD).status_code == 400
+    r = reset(token=token, password="short")
+    assert r.status_code == 400 and "at least 8" in r.get_json()["error"]
+    # The token survives a refused password
+    assert reset(token=token, password=NEW_PASSWORD).status_code == 200
+
+
+def test_reset_link_expires(app, signed_in, outbox):
+    signed_in.post("/api/auth/forgot-password", json={"email": CREDS["email"]})
+    app.config["RESET_TOKEN_MAX_AGE"] = -1
+    r = signed_in.post(
+        "/api/auth/reset-password", json={"token": reset_token(outbox), "password": NEW_PASSWORD}
+    )
+    assert r.status_code == 400
+    assert "expired" in r.get_json()["error"]
+
+
+def test_reset_confirms_an_unconfirmed_account(client, outbox):
+    client.post("/api/auth/register", json=CREDS)
+    client.post("/api/auth/forgot-password", json={"email": CREDS["email"]})
+    r = client.post(
+        "/api/auth/reset-password", json={"token": reset_token(outbox), "password": NEW_PASSWORD}
+    )
+    assert r.status_code == 200
+    assert client.post("/api/auth/login", json={**CREDS, "password": NEW_PASSWORD}).status_code == 200
+
+
+def test_reset_email_failure_is_not_shown(client, outbox, monkeypatch):
+    client.post("/api/auth/register", json=CREDS)
+
+    def broken(*args):
+        raise RuntimeError("smtp down")
+
+    monkeypatch.setattr(auth_module, "send_email", broken)
+    assert client.post("/api/auth/forgot-password", json={"email": CREDS["email"]}).status_code == 200

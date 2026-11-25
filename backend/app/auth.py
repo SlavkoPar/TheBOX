@@ -1,3 +1,4 @@
+import hashlib
 import re
 from datetime import timedelta, timezone
 from functools import wraps
@@ -18,6 +19,9 @@ CONFIRM_SALT = "email-confirm"
 
 REGISTER_MESSAGE = "Check your inbox for a link to confirm your email address."
 RESEND_MESSAGE = "If that account exists and is not confirmed, a new link has been sent."
+RESET_SALT = "password-reset"
+FORGOT_MESSAGE = "If that address has an account, a link to set a new password has been sent."
+RESET_INVALID = "This link is not valid any more. Ask for a new one."
 
 
 def error(message, status):
@@ -169,6 +173,86 @@ def resend_confirmation():
     if user is not None and not user.is_confirmed:
         _try_send_confirmation(user)
     return jsonify(message=RESEND_MESSAGE)
+
+
+# --- Forgotten password -----------------------------------------------------------
+
+
+def _reset_serializer():
+    return URLSafeTimedSerializer(current_app.config["SECRET_KEY"], salt=RESET_SALT)
+
+
+def _password_mark(user):
+    """Changes whenever the password does, so a reset link works only once."""
+    return hashlib.sha256(user.password_hash.encode()).hexdigest()[:16]
+
+
+def make_reset_token(user):
+    return _reset_serializer().dumps({"id": user.id, "mark": _password_mark(user)})
+
+
+def _password_error(password):
+    if len(password) < MIN_PASSWORD_LENGTH:
+        return f"Password must be at least {MIN_PASSWORD_LENGTH} characters."
+    if len(password) > MAX_PASSWORD_LENGTH:
+        return f"Password must be at most {MAX_PASSWORD_LENGTH} characters."
+    return None
+
+
+@auth.post("/forgot-password")
+def forgot_password():
+    """Email a link to set a new password. The answer is the same whether or
+    not the address has an account, so it does not reveal who is registered."""
+    email, _ = _credentials()
+    user = db.session.scalar(db.select(User).where(User.email == email)) if email else None
+    if user is not None:
+        link = f"{current_app.config['FRONTEND_URL']}/reset-password?token={make_reset_token(user)}"
+        minutes = current_app.config["RESET_TOKEN_MAX_AGE"] // 60
+        try:
+            send_email(
+                user.email,
+                "Set a new TheBOX password",
+                "Someone asked to set a new password for your TheBOX account.\n\n"
+                f"Choose a new password by opening this link:\n{link}\n\n"
+                f"The link works once and expires in {minutes} minutes. "
+                "If it was not you, ignore this email: your password stays as it is.\n",
+            )
+        except Exception:
+            current_app.logger.exception("Could not send password reset email to %s", user.email)
+    return jsonify(message=FORGOT_MESSAGE)
+
+
+@auth.post("/reset-password")
+def reset_password():
+    data = request.get_json(silent=True) or {}
+    token = data.get("token")
+    password = data.get("password")
+    password = password if isinstance(password, str) else ""
+    if not isinstance(token, str) or not token:
+        return error(RESET_INVALID, 400)
+
+    try:
+        payload = _reset_serializer().loads(token, max_age=current_app.config["RESET_TOKEN_MAX_AGE"])
+    except SignatureExpired:
+        return error("This link has expired. Ask for a new one.", 400)
+    except BadSignature:
+        return error(RESET_INVALID, 400)
+
+    user = db.session.get(User, payload.get("id")) if isinstance(payload, dict) else None
+    if user is None or payload.get("mark") != _password_mark(user):
+        return error(RESET_INVALID, 400)
+
+    problem = _password_error(password)
+    if problem:
+        return error(problem, 400)
+
+    user.set_password(password)
+    if not user.is_confirmed:
+        # The link came by email, which is what confirming proves too
+        user.is_confirmed = True
+        user.confirmed_at = utcnow()
+    db.session.commit()
+    return jsonify(message="Your password is changed. You can sign in now.")
 
 
 @auth.post("/login")

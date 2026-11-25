@@ -5,6 +5,7 @@ import AppLayout from './layout/AppLayout'
 import Calendar from './pages/Calendar'
 import Confirm from './pages/Confirm'
 import Drive from './pages/Drive'
+import ForgotPassword from './pages/ForgotPassword'
 import Home from './pages/Home'
 import Login from './pages/Login'
 import Messenger from './pages/Messenger'
@@ -12,6 +13,7 @@ import Packages from './pages/Packages'
 import Photos from './pages/Photos'
 import Recipients from './pages/Recipients'
 import Register from './pages/Register'
+import ResetPassword from './pages/ResetPassword'
 import Shared from './pages/Shared'
 import Tasks from './pages/Tasks'
 import Users from './pages/Users'
@@ -41,6 +43,8 @@ export default function App() {
         <Route path="/login" element={<Login />} />
         <Route path="/register" element={<Register />} />
         <Route path="/confirm" element={<Confirm />} />
+        <Route path="/forgot-password" element={<ForgotPassword />} />
+        <Route path="/reset-password" element={<ResetPassword />} />
       </Route>
 
       {/* Public page for people who received a link by email */}

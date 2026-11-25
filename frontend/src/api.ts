@@ -127,6 +127,9 @@ export const api = {
   confirm: (token: string) => request<Message>('POST', '/auth/confirm', { token }),
   resendConfirmation: (email: string) =>
     request<Message>('POST', '/auth/resend-confirmation', { email }),
+  forgotPassword: (email: string) => request<Message>('POST', '/auth/forgot-password', { email }),
+  resetPassword: (token: string, password: string) =>
+    request<Message>('POST', '/auth/reset-password', { token, password }),
   demo: () => request<DemoData>('GET', '/demo'),
 }
 
