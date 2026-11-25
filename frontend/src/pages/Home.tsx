@@ -62,7 +62,8 @@ export default function Home() {
         ))}
       </nav>
 
-      <DemoFetch />
+      {/* A check that the frontend reaches the backend: of use to administrators only */}
+      {user?.is_admin && <DemoFetch />}
     </div>
   )
 }

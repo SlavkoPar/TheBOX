@@ -13,18 +13,27 @@ describe('App', () => {
     expect(await screen.findByRole('heading', { name: 'Sign in' })).toBeInTheDocument()
   })
 
-  it('shows the home page with the demo fetch to a signed-in user', async () => {
+  it('shows the home page to a signed-in user, without the demo fetch', async () => {
+    const fetchMock = mockApi({ 'GET /api/auth/me': { body: { user: USER } } })
+    renderApp(<App />, '/')
+
+    expect(await screen.findByText('user@example.com')).toBeInTheDocument()
+    // One tile per app
+    const tiles = screen.getByRole('navigation', { name: 'Your apps' })
+    expect(tiles.querySelectorAll('a')).toHaveLength(7)
+    // The demo fetch is for administrators: not shown, and the server is not asked
+    expect(screen.queryByRole('heading', { name: /demo/i })).not.toBeInTheDocument()
+    expect(fetchMock.mock.calls.some(([url]) => String(url).includes('/api/demo'))).toBe(false)
+  })
+
+  it('shows the demo fetch to an administrator', async () => {
     mockApi({
-      'GET /api/auth/me': { body: { user: USER } },
+      'GET /api/auth/me': { body: { user: { ...USER, is_admin: true } } },
       'GET /api/demo': { body: DEMO },
     })
     renderApp(<App />, '/')
 
-    expect(await screen.findByText('user@example.com')).toBeInTheDocument()
     expect(await screen.findByText('Hello!')).toBeInTheDocument()
-    // One tile per app
-    const tiles = screen.getByRole('navigation', { name: 'Your apps' })
-    expect(tiles.querySelectorAll('a')).toHaveLength(7)
   })
 
   it('shows on each tile how many items the app holds', async () => {

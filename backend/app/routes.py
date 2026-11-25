@@ -1,6 +1,7 @@
 from flask import Blueprint, jsonify
 from sqlalchemy import text
 
+from .admin import admin_required
 from .auth import current_user, login_required
 from .extensions import db
 from .messenger import unread_count
@@ -90,9 +91,9 @@ DEMO_ITEMS = [
 
 
 @api.get("/demo")
-@login_required
+@admin_required
 def demo():
-    """Sample data for the frontend's demo fetch. Requires a signed-in user."""
+    """Sample data for the frontend's demo fetch. For administrators only."""
     return jsonify(
         message=f"Hello, {current_user().email}!",
         server_time=utcnow().isoformat(),

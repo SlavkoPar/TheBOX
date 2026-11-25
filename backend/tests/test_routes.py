@@ -25,11 +25,20 @@ def test_demo_requires_login(client):
     assert "error" in r.get_json()
 
 
-def test_demo_returns_sample_data(signed_in):
+def test_demo_is_for_administrators_only(signed_in):
+    r = signed_in.get("/api/demo")
+    assert r.status_code == 403
+    assert r.get_json()["code"] == "not_admin"
+
+
+def test_demo_returns_sample_data(app, outbox):
+    from test_admin import ADMIN_CREDS, sign_in
+
+    signed_in = sign_in(app, outbox, ADMIN_CREDS)
     r = signed_in.get("/api/demo")
     assert r.status_code == 200
     data = r.get_json()
-    assert data["message"] == "Hello, user@example.com!"
+    assert data["message"] == "Hello, admin@example.com!"
     assert data["items"] == routes.DEMO_ITEMS
     assert datetime.fromisoformat(data["server_time"]).tzinfo is not None
 
