@@ -46,7 +46,9 @@ describe('AppLayout', () => {
   it('opens the chosen app and closes the menu', async () => {
     renderLayout()
     await userEvent.click(await screen.findByRole('button', { name: 'Apps' }))
-    await userEvent.click(screen.getByRole('link', { name: 'Recipients' }))
+    await userEvent.click(
+      within(screen.getByRole('navigation', { name: 'Apps' })).getByRole('link', { name: 'Recipients' }),
+    )
 
     expect(screen.getByText('recipients page')).toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: 'Apps' })).not.toBeInTheDocument()
@@ -55,8 +57,36 @@ describe('AppLayout', () => {
   it('marks the current app in the menu and shows it in the header', async () => {
     renderLayout('/drive')
     await userEvent.click(await screen.findByRole('button', { name: 'Apps' }))
-    expect(screen.getByRole('link', { name: 'Drive' })).toHaveAttribute('aria-current', 'page')
-    expect(screen.getByRole('link', { name: 'Photos' })).not.toHaveAttribute('aria-current')
+    const menu = within(screen.getByRole('navigation', { name: 'Apps' }))
+    expect(menu.getByRole('link', { name: 'Drive' })).toHaveAttribute('aria-current', 'page')
+    expect(menu.getByRole('link', { name: 'Photos' })).not.toHaveAttribute('aria-current')
+  })
+
+  it('has a side bar with a shortcut to every app, icon and name', async () => {
+    renderLayout('/drive')
+    const bar = await screen.findByRole('navigation', { name: 'App shortcuts' })
+    const links = within(bar).getAllByRole('link')
+    expect(links.map((link) => link.textContent)).toEqual([
+      'Drive',
+      'Photos',
+      'Tasks',
+      'Calendar',
+      'Packages',
+      'Recipients',
+      'Messenger',
+    ])
+    for (const link of links) expect(link.querySelector('svg')).not.toBeNull()
+    expect(within(bar).getByRole('link', { name: 'Drive' })).toHaveAttribute('aria-current', 'page')
+
+    // It stays where it is while you move between apps
+    await userEvent.click(within(bar).getByRole('link', { name: 'Recipients' }))
+    expect(screen.getByText('recipients page')).toBeInTheDocument()
+    expect(within(bar).getByRole('link', { name: 'Recipients' })).toHaveAttribute('aria-current', 'page')
+
+    // The Messenger opens as a panel over the page
+    await userEvent.click(within(bar).getByRole('link', { name: 'Messenger' }))
+    expect(screen.getByText('recipients page')).toBeInTheDocument()
+    expect(screen.getByRole('complementary', { name: 'Messenger' })).toBeInTheDocument()
   })
 
   it('closes the menu on Escape and on a click outside', async () => {

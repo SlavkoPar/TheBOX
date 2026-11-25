@@ -1,4 +1,4 @@
-import { screen } from '@testing-library/react'
+import { screen, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import App from './App'
@@ -55,7 +55,8 @@ describe('App', () => {
     })
     renderApp(<App />, '/')
 
-    const tile = (name: RegExp) => screen.getByRole('link', { name })
+    const tile = (name: RegExp) =>
+      within(screen.getByRole('navigation', { name: 'Your apps' })).getByRole('link', { name })
     expect(await screen.findByText('3 folders · 1 document')).toBeInTheDocument()
     expect(tile(/^Drive/)).toHaveTextContent('3 folders · 1 document')
     expect(tile(/^Photos/)).toHaveTextContent('1 album · 40 photos')

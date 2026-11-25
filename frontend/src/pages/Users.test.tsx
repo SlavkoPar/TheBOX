@@ -70,7 +70,10 @@ describe('Users', () => {
     renderUsers()
 
     await userEvent.click(await screen.findByRole('button', { name: 'Apps' }))
-    expect(screen.getByRole('link', { name: 'Users' })).toHaveAttribute('aria-current', 'page')
+    for (const name of ['Apps', 'App shortcuts']) {
+      const nav = within(screen.getByRole('navigation', { name }))
+      expect(nav.getByRole('link', { name: 'Users' })).toHaveAttribute('aria-current', 'page')
+    }
   })
 
   it('sends anyone else back to the home page without asking the server', async () => {

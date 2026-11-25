@@ -59,37 +59,50 @@ function HeaderMenu({ label, icon, children }: MenuProps) {
   )
 }
 
-function AppsMenu() {
+type AppLinksProps = {
+  /** class of each link, next to the app's own colour class */
+  className: string
+  iconSize: number
+  onNavigate?: () => void
+}
+
+/** A link to every app the user has, icon and name; the current one is marked. */
+function AppLinks({ className, iconSize, onNavigate }: AppLinksProps) {
   const { pathname } = useLocation()
   const { user } = useAuth()
   const messenger = useMessenger()
   const current = appForPath(pathname)
 
+  return appsFor(user).map((app) => (
+    <Link
+      key={app.id}
+      to={app.path}
+      className={`${className} app-${app.id}`}
+      aria-current={current?.id === app.id ? 'page' : undefined}
+      title={app.name}
+      onClick={(event) => {
+        onNavigate?.()
+        // The Messenger opens as a panel over the page you are on
+        if (app.id === 'messenger') {
+          event.preventDefault()
+          messenger.open()
+        }
+      }}
+    >
+      <span className="app-icon">
+        <Icon name={app.icon} size={iconSize} />
+      </span>
+      <span className="app-name">{app.name}</span>
+    </Link>
+  ))
+}
+
+function AppsMenu() {
   return (
     <HeaderMenu label="Apps" icon="grid">
       {(close) => (
         <nav className="apps-grid" aria-label="Apps">
-          {appsFor(user).map((app) => (
-            <Link
-              key={app.id}
-              to={app.path}
-              className={`app-link app-${app.id}`}
-              aria-current={current?.id === app.id ? 'page' : undefined}
-              onClick={(event) => {
-                close()
-                // The Messenger opens as a panel over the page you are on
-                if (app.id === 'messenger') {
-                  event.preventDefault()
-                  messenger.open()
-                }
-              }}
-            >
-              <span className="app-icon">
-                <Icon name={app.icon} size={24} />
-              </span>
-              {app.name}
-            </Link>
-          ))}
+          <AppLinks className="app-link" iconSize={24} onNavigate={close} />
         </nav>
       )}
     </HeaderMenu>
@@ -129,7 +142,7 @@ function ProfileMenu() {
   )
 }
 
-/** Header (brand, apps menu, profile) around the page of the current app. */
+/** Header (brand, apps menu, profile) and a side bar of app shortcuts around the page of the current app. */
 export default function AppLayout() {
   const { pathname } = useLocation()
   const current = appForPath(pathname)
@@ -163,9 +176,14 @@ export default function AppLayout() {
         <AppsMenu />
         <ProfileMenu />
       </header>
-      <main className="shell-main">
-        <Outlet />
-      </main>
+      <div className="shell-body">
+        <nav className="side-bar" aria-label="App shortcuts">
+          <AppLinks className="side-link" iconSize={20} />
+        </nav>
+        <main className="shell-main">
+          <Outlet />
+        </main>
+      </div>
     </div>
     </MessengerContext.Provider>
   )

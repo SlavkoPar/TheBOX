@@ -260,6 +260,7 @@ small {
 /* ---------- App shell ---------- */
 
 .shell {
+  --header-height: 46px;
   min-height: 100svh;
   display: flex;
   flex-direction: column;
@@ -272,6 +273,8 @@ small {
   display: flex;
   align-items: center;
   gap: 10px;
+  box-sizing: border-box;
+  min-height: var(--header-height);
   padding: 5px 16px;
   background: var(--bg);
   border-bottom: 1px solid var(--border);
@@ -301,7 +304,66 @@ small {
 
 .shell-main {
   flex: 1;
+  min-width: 0;
   padding: 14px 16px 32px;
+}
+
+/* The side bar of app shortcuts, and the page next to it */
+.shell-body {
+  flex: 1;
+  display: flex;
+  align-items: flex-start;
+}
+
+.side-bar {
+  position: sticky;
+  top: var(--header-height);
+  flex: none;
+  box-sizing: border-box;
+  width: 168px;
+  height: calc(100svh - var(--header-height));
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 10px 8px;
+  border-right: 1px solid var(--border);
+}
+
+.side-link {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 10px;
+  border-radius: var(--radius);
+  font-size: 14px;
+  color: var(--text-h);
+  text-decoration: none;
+}
+
+.side-link:hover,
+.side-link[aria-current='page'] {
+  background: var(--accent-bg);
+}
+
+.side-link[aria-current='page'] {
+  font-weight: 600;
+}
+
+/* Narrow screens: the icons alone */
+@media (max-width: 760px) {
+  .side-bar {
+    width: auto;
+    padding: 8px 4px;
+  }
+
+  .side-link {
+    padding: 8px;
+  }
+
+  .side-link .app-name {
+    display: none;
+  }
 }
 
 .header-menu {

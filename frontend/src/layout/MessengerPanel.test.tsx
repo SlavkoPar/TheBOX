@@ -351,7 +351,7 @@ describe('Messenger panel', () => {
     const user = userEvent.setup()
 
     await user.click(await screen.findByRole('button', { name: 'Apps' }))
-    await user.click(screen.getByRole('link', { name: 'Messenger' }))
+    await user.click(within(screen.getByRole('navigation', { name: 'Apps' })).getByRole('link', { name: 'Messenger' }))
     expect(screen.getByRole('complementary', { name: 'Messenger' })).toBeInTheDocument()
     expect(screen.getByText('drive page')).toBeInTheDocument()
   })
