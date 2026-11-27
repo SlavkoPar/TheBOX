@@ -133,9 +133,9 @@ export const api = {
   demo: () => request<DemoData>('GET', '/demo'),
 }
 
-// --- Recipients -------------------------------------------------------------------
+// --- Friends -------------------------------------------------------------------
 
-export type RecipientInput = {
+export type FriendInput = {
   first_name: string
   last_name: string
   email: string
@@ -143,9 +143,9 @@ export type RecipientInput = {
   country: string
   mobile: string
 }
-export type Recipient = RecipientInput & WithId
+export type Friend = FriendInput & WithId
 
-export const recipientsApi = collection<Recipient, RecipientInput>('/recipients')
+export const friendsApi = collection<Friend, FriendInput>('/friends')
 
 // --- Repeats (tasks and events) ------------------------------------------------------
 
@@ -176,11 +176,11 @@ export type ChatMessage = {
 /** What to send along: files, and folders (the files in them at that moment). */
 export type ChatAttachments = { file_ids: number[]; folder_ids: number[] }
 
-/** Someone to chat with: a recipient, or a person who wrote first (no recipient_id). */
+/** Someone to chat with: a friend, or a person who wrote first (no friend_id). */
 export type Conversation = {
   email: string
   name: string
-  recipient_id: number | null
+  friend_id: number | null
   unread: number
   last: ChatMessage | null
   /** signed in to TheBOX right now */
@@ -243,8 +243,8 @@ export type EventInput = {
   reminder_minutes: number | null
   repeat: Repeat
   repeat_until: string | null // YYYY-MM-DD, inclusive
-  /** recipients invited to the event: they get the invitation and the reminders */
-  recipient_ids: number[]
+  /** friends invited to the event: they get the invitation and the reminders */
+  friend_ids: number[]
 }
 export type CalendarEvent = EventInput & WithId & { reminder_sent_at: string | null }
 
@@ -297,7 +297,7 @@ export type ShareResult = {
   failed: string[]
 }
 
-/** A link that was emailed to recipients. */
+/** A link that was emailed to friends. */
 export type SharedLink = {
   id: number
   link: string
@@ -306,7 +306,7 @@ export type SharedLink = {
   expires_at: string | null
   expired: boolean
   files: FileItem[]
-  recipients: Recipient[]
+  friends: Friend[]
 }
 
 /** Text-only preview of an Office file. */
@@ -381,11 +381,11 @@ export function filesApi(app: FileApp) {
       request<FileItem>('POST', `${base}/files/${id}/decrypt`, { password }),
 
     /** Sharing a folder shares the files in it (and its subfolders) at that moment. */
-    share: (fileIds: number[], folderIds: number[], recipientIds: number[], message: string) =>
+    share: (fileIds: number[], folderIds: number[], friendIds: number[], message: string) =>
       request<ShareResult>('POST', `${base}/shares`, {
         file_ids: fileIds,
         folder_ids: folderIds,
-        recipient_ids: recipientIds,
+        friend_ids: friendIds,
         message,
       }),
     shares: () => request<{ items: SharedLink[] }>('GET', `${base}/shares`).then((d) => d.items),
@@ -409,7 +409,7 @@ export type PackageInput = {
   message: string
   file_ids: number[]
   folder_ids: number[]
-  recipient_ids: number[]
+  friend_ids: number[]
 }
 
 /** `path` is the folder the item is in, e.g. "Work / Reports"; "" for the top level. */
@@ -422,7 +422,7 @@ export type PackageSend = {
   id: number
   sent_at: string
   message: string
-  recipients: { name: string; email: string; sent: boolean }[]
+  friends: { name: string; email: string; sent: boolean }[]
   items: { kind: 'file' | 'folder'; app: FileApp; name: string; path: string; file_count?: number }[]
 }
 
@@ -438,14 +438,14 @@ export type Package = WithId & {
   file_count: number
   files: PackageFile[]
   folders: PackageFolder[]
-  recipients: Recipient[]
+  friends: Friend[]
   /** newest first */
   sends: PackageSend[]
 }
 
 export const packagesApi = {
   ...collection<Package, PackageInput>('/packages'),
-  /** Email the link to the package's recipients; the send is added to its history. */
+  /** Email the link to the package's friends; the send is added to its history. */
   send: (id: number) => request<ShareResult & { package: Package }>('POST', `/packages/${id}/send`),
 }
 

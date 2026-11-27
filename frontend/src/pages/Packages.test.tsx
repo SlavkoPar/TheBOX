@@ -9,7 +9,7 @@ const ME = { 'GET /api/auth/me': { body: { user: USER } } }
 
 const ANA = { id: 1, first_name: 'Ana', last_name: 'Kovač', email: 'ana@example.com', address: '', country: '', mobile: '' }
 const BOB = { ...ANA, id: 2, first_name: 'Bob', last_name: '', email: 'bob@example.com' }
-const RECIPIENTS = { 'GET /api/recipients': { body: { items: [ANA, BOB] } } }
+const FRIENDS = { 'GET /api/friends': { body: { items: [ANA, BOB] } } }
 
 function file(id: number, name: string, folder_id: number | null = null): FileItem {
   return {
@@ -66,7 +66,7 @@ const PACKAGE: Package = {
   file_count: 4,
   files: [{ ...file(11, 'deep.txt', 5), app: 'drive', path: 'Work' }],
   folders: [{ ...ALBUM, app: 'photos', path: '', file_count: 3 }],
-  recipients: [ANA],
+  friends: [ANA],
   sends: [],
 }
 
@@ -77,7 +77,7 @@ const SENT: Package = {
       id: 8,
       sent_at: '2026-11-22T09:30:00+00:00',
       message: 'Please read',
-      recipients: [
+      friends: [
         { name: 'Ana Kovač', email: 'ana@example.com', sent: true },
         { name: 'Bob', email: 'bob@example.com', sent: false },
       ],
@@ -109,7 +109,7 @@ describe('Packages', () => {
     expect(within(list).getByRole('listitem', { name: 'For the board' })).toBeInTheDocument()
   })
 
-  it('lists a package with its contents, recipients and link', async () => {
+  it('lists a package with its contents, friends and link', async () => {
     mockApi({ ...ME, 'GET /api/packages': { body: { items: [PACKAGE] } } })
     renderApp(<Packages />)
 
@@ -131,7 +131,7 @@ describe('Packages', () => {
     const items: Package[] = []
     const fetchMock = mockApi({
       ...ME,
-      ...RECIPIENTS,
+      ...FRIENDS,
       ...BROWSE,
       'GET /api/packages': () => ({ body: { items } }),
       'POST /api/packages': () => {
@@ -181,12 +181,12 @@ describe('Packages', () => {
       message: 'Please read',
       file_ids: [11],
       folder_ids: [6],
-      recipient_ids: [1],
+      friend_ids: [1],
     })
   })
 
   it('does not save a package with nothing in it', async () => {
-    mockApi({ ...ME, ...RECIPIENTS, 'GET /api/packages': { body: { items: [] } } })
+    mockApi({ ...ME, ...FRIENDS, 'GET /api/packages': { body: { items: [] } } })
     const user = userEvent.setup()
     renderApp(<Packages />)
 
@@ -201,7 +201,7 @@ describe('Packages', () => {
     let current = PACKAGE
     const fetchMock = mockApi({
       ...ME,
-      ...RECIPIENTS,
+      ...FRIENDS,
       ...BROWSE,
       'GET /api/packages': () => ({ body: { items: [current] } }),
       'PATCH /api/packages/3': () => {
@@ -236,7 +236,7 @@ describe('Packages', () => {
       message: 'Please read',
       file_ids: [10],
       folder_ids: [6],
-      recipient_ids: [1, 2],
+      friend_ids: [1, 2],
     })
   })
 
@@ -272,14 +272,14 @@ describe('Packages', () => {
     expect(screen.getByRole('button', { name: 'Send For the board' })).toHaveTextContent('Send again')
   })
 
-  it('will not send a package that has no recipients', async () => {
-    mockApi({ ...ME, 'GET /api/packages': { body: { items: [{ ...PACKAGE, recipients: [] }] } } })
+  it('will not send a package that has no friends', async () => {
+    mockApi({ ...ME, 'GET /api/packages': { body: { items: [{ ...PACKAGE, friends: [] }] } } })
     const user = userEvent.setup()
     renderApp(<Packages />)
 
     await user.click(await screen.findByRole('button', { name: 'Send For the board' }))
     const dialog = screen.getByRole('dialog')
-    expect(within(dialog).getByRole('alert')).toHaveTextContent('This package has no recipients.')
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('This package has no friends.')
     expect(within(dialog).getByRole('button', { name: 'Send' })).toBeDisabled()
   })
 

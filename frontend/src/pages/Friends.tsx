@@ -1,6 +1,6 @@
 import { useState } from 'react'
-import { recipientsApi } from '../api'
-import type { Recipient, RecipientInput } from '../api'
+import { friendsApi } from '../api'
+import type { Friend, FriendInput } from '../api'
 import { ConfirmDialog, FormModal } from '../common/Modal'
 import ViewToggle from '../common/ViewToggle'
 import { Icon } from '../common/icons'
@@ -8,7 +8,7 @@ import { useMessenger } from '../common/messengerContext'
 import { useCollection } from '../common/useCollection'
 import { useViewMode } from '../common/useViewMode'
 
-const EMPTY: RecipientInput = {
+const EMPTY: FriendInput = {
   first_name: '',
   last_name: '',
   email: '',
@@ -17,7 +17,7 @@ const EMPTY: RecipientInput = {
   mobile: '',
 }
 
-const FIELDS: { key: keyof RecipientInput; label: string; type?: string; required?: boolean }[] = [
+const FIELDS: { key: keyof FriendInput; label: string; type?: string; required?: boolean }[] = [
   { key: 'first_name', label: 'First name', required: true },
   { key: 'last_name', label: 'Last name' },
   { key: 'email', label: 'Email', type: 'email', required: true },
@@ -27,20 +27,20 @@ const FIELDS: { key: keyof RecipientInput; label: string; type?: string; require
 ]
 
 type FormProps = {
-  recipient: Recipient | null
+  friend: Friend | null
   onClose: () => void
-  onSave: (data: RecipientInput) => Promise<unknown>
+  onSave: (data: FriendInput) => Promise<unknown>
 }
 
-function RecipientForm({ recipient, onClose, onSave }: FormProps) {
-  const [values, setValues] = useState<RecipientInput>(() =>
-    recipient ? { ...EMPTY, ...pick(recipient) } : EMPTY,
+function FriendForm({ friend, onClose, onSave }: FormProps) {
+  const [values, setValues] = useState<FriendInput>(() =>
+    friend ? { ...EMPTY, ...pick(friend) } : EMPTY,
   )
 
   return (
     <FormModal
-      title={recipient ? 'Edit recipient' : 'New recipient'}
-      submitLabel={recipient ? 'Save' : 'Add recipient'}
+      title={friend ? 'Edit friend' : 'New friend'}
+      submitLabel={friend ? 'Save' : 'Add friend'}
       onClose={onClose}
       onSubmit={() => onSave(values)}
     >
@@ -61,47 +61,47 @@ function RecipientForm({ recipient, onClose, onSave }: FormProps) {
   )
 }
 
-function pick(recipient: Recipient): RecipientInput {
-  const { first_name, last_name, email, address, country, mobile } = recipient
+function pick(friend: Friend): FriendInput {
+  const { first_name, last_name, email, address, country, mobile } = friend
   return { first_name, last_name, email, address, country, mobile }
 }
 
-export default function Recipients() {
-  const { items, loading, error, create, update, remove } = useCollection(recipientsApi)
-  const [editing, setEditing] = useState<Recipient | 'new' | null>(null)
-  const [deleting, setDeleting] = useState<Recipient | null>(null)
-  const [mode, setMode] = useViewMode('recipients', 'list')
+export default function Friends() {
+  const { items, loading, error, create, update, remove } = useCollection(friendsApi)
+  const [editing, setEditing] = useState<Friend | 'new' | null>(null)
+  const [deleting, setDeleting] = useState<Friend | null>(null)
+  const [mode, setMode] = useViewMode('friends', 'list')
   const messenger = useMessenger()
 
-  const fullName = (recipient: Recipient) => `${recipient.first_name} ${recipient.last_name}`.trim()
+  const fullName = (friend: Friend) => `${friend.first_name} ${friend.last_name}`.trim()
 
-  function actions(recipient: Recipient) {
+  function actions(friend: Friend) {
     return (
       <>
         <button
           type="button"
           className="icon-button"
-          aria-label={`Message ${fullName(recipient)}`}
+          aria-label={`Message ${fullName(friend)}`}
           title="Message"
-          onClick={() => messenger.open(recipient.email)}
+          onClick={() => messenger.open(friend.email)}
         >
           <Icon name="chat" />
         </button>
         <button
           type="button"
           className="icon-button"
-          aria-label={`Edit ${fullName(recipient)}`}
+          aria-label={`Edit ${fullName(friend)}`}
           title="Edit"
-          onClick={() => setEditing(recipient)}
+          onClick={() => setEditing(friend)}
         >
           <Icon name="edit" />
         </button>
         <button
           type="button"
           className="icon-button"
-          aria-label={`Delete ${fullName(recipient)}`}
+          aria-label={`Delete ${fullName(friend)}`}
           title="Delete"
-          onClick={() => setDeleting(recipient)}
+          onClick={() => setDeleting(friend)}
         >
           <Icon name="trash" />
         </button>
@@ -113,13 +113,13 @@ export default function Recipients() {
     <div className="page">
       <div className="page-header">
         <div>
-          <h2>Recipients</h2>
+          <h2>Friends</h2>
           <p className="hint">People you can send links to from Drive and Photos, and chat with in Messenger.</p>
         </div>
         <div className="toolbar">
           <ViewToggle mode={mode} onChange={setMode} />
           <button type="button" onClick={() => setEditing('new')}>
-            <Icon name="plus" size={18} /> New recipient
+            <Icon name="plus" size={18} /> New friend
           </button>
         </div>
       </div>
@@ -133,21 +133,21 @@ export default function Recipients() {
       {loading ? (
         <p>Loading…</p>
       ) : items.length === 0 ? (
-        <p className="empty">No recipients yet. Add the people you want to share with.</p>
+        <p className="empty">No friends yet. Add the people you want to share with.</p>
       ) : mode === 'grid' ? (
-        <ul className="card-grid" aria-label="Recipients">
-          {items.map((recipient) => (
-            <li key={recipient.id} aria-label={fullName(recipient)}>
+        <ul className="card-grid" aria-label="Friends">
+          {items.map((friend) => (
+            <li key={friend.id} aria-label={fullName(friend)}>
               <div className="card-head">
-                <strong>{fullName(recipient)}</strong>
+                <strong>{fullName(friend)}</strong>
                 <span className="spacer" />
-                <span className="row-actions">{actions(recipient)}</span>
+                <span className="row-actions">{actions(friend)}</span>
               </div>
-              <a href={`mailto:${recipient.email}`}>{recipient.email}</a>
-              {recipient.mobile && <span>{recipient.mobile}</span>}
-              {(recipient.address || recipient.country) && (
+              <a href={`mailto:${friend.email}`}>{friend.email}</a>
+              {friend.mobile && <span>{friend.mobile}</span>}
+              {(friend.address || friend.country) && (
                 <span className="hint">
-                  {[recipient.address, recipient.country].filter(Boolean).join(', ')}
+                  {[friend.address, friend.country].filter(Boolean).join(', ')}
                 </span>
               )}
             </li>
@@ -170,17 +170,17 @@ export default function Recipients() {
               </tr>
             </thead>
             <tbody>
-              {items.map((recipient) => (
-                <tr key={recipient.id}>
-                  <td>{recipient.first_name}</td>
-                  <td>{recipient.last_name}</td>
+              {items.map((friend) => (
+                <tr key={friend.id}>
+                  <td>{friend.first_name}</td>
+                  <td>{friend.last_name}</td>
                   <td>
-                    <a href={`mailto:${recipient.email}`}>{recipient.email}</a>
+                    <a href={`mailto:${friend.email}`}>{friend.email}</a>
                   </td>
-                  <td>{recipient.address}</td>
-                  <td>{recipient.country}</td>
-                  <td>{recipient.mobile}</td>
-                  <td className="row-actions">{actions(recipient)}</td>
+                  <td>{friend.address}</td>
+                  <td>{friend.country}</td>
+                  <td>{friend.mobile}</td>
+                  <td className="row-actions">{actions(friend)}</td>
                 </tr>
               ))}
             </tbody>
@@ -189,8 +189,8 @@ export default function Recipients() {
       )}
 
       {editing && (
-        <RecipientForm
-          recipient={editing === 'new' ? null : editing}
+        <FriendForm
+          friend={editing === 'new' ? null : editing}
           onClose={() => setEditing(null)}
           onSave={(data) => (editing === 'new' ? create(data) : update(editing.id, data))}
         />
@@ -198,7 +198,7 @@ export default function Recipients() {
 
       {deleting && (
         <ConfirmDialog
-          title="Delete recipient"
+          title="Delete friend"
           message={`Delete ${deleting.first_name} ${deleting.last_name} (${deleting.email})?`}
           confirmLabel="Delete"
           onClose={() => setDeleting(null)}

@@ -1,4 +1,4 @@
-"""Code shared by all apps (Recipients, Tasks, Calendar, Drive, Photos).
+"""Code shared by all apps (Friends, Tasks, Calendar, Drive, Photos).
 
 - ApiError: raise anywhere in a view to return a JSON error.
 - Field classes + apply_schema: validate request JSON and copy it onto a model.

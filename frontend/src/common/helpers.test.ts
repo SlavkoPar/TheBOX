@@ -82,7 +82,7 @@ function event(extra: Partial<CalendarEvent>): CalendarEvent {
     reminder_sent_at: null,
     repeat: 'none',
     repeat_until: null,
-    recipient_ids: [],
+    friend_ids: [],
     ...extra,
   }
 }

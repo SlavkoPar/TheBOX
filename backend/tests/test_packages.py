@@ -4,11 +4,11 @@ from app import packages as packages_module
 from app.extensions import db
 from app.models import Package, utcnow
 
-from test_files import PNG, new_folder, recipient, uploaded
+from test_files import PNG, new_folder, friend, uploaded
 
 
 def make(client, **fields):
-    body = {"name": "For the board", "file_ids": [], "folder_ids": [], "recipient_ids": []}
+    body = {"name": "For the board", "file_ids": [], "folder_ids": [], "friend_ids": []}
     r = client.post("/api/packages", json={**body, **fields})
     assert r.status_code == 201, r.get_json()
     return r.get_json()
@@ -84,7 +84,7 @@ def test_validation(signed_in, other):
     file = uploaded(signed_in)
     theirs = uploaded(other, name="theirs.txt")
     their_folder = new_folder(other, "Theirs")
-    their_recipient = recipient(other)
+    their_friend = friend(other)
 
     def error(**fields):
         body = {"name": "P", "file_ids": [file["id"]], **fields}
@@ -96,7 +96,7 @@ def test_validation(signed_in, other):
     assert error(file_ids="1") == (400, "Files must be a list of ids.")
     assert error(file_ids=[theirs["id"]]) == (404, "File not found.")
     assert error(folder_ids=[their_folder["id"]]) == (404, "Folder not found.")
-    assert error(recipient_ids=[their_recipient["id"]]) == (404, "Recipient not found.")
+    assert error(friend_ids=[their_friend["id"]]) == (404, "Friend not found.")
 
     signed_in.delete(f"/api/drive/files/{file['id']}")
     assert error() == (404, "File not found.")  # in the trash
@@ -107,7 +107,7 @@ def test_edit_a_package(signed_in):
     first = uploaded(signed_in, name="first.txt")
     second = uploaded(signed_in, name="second.txt")
     folder = new_folder(signed_in, "Work")
-    ana = recipient(signed_in)
+    ana = friend(signed_in)
     package = make(signed_in, file_ids=[first["id"]])
     url = f"/api/packages/{package['id']}"
 
@@ -122,14 +122,14 @@ def test_edit_a_package(signed_in):
         json={
             "file_ids": [second["id"]],
             "folder_ids": [folder["id"]],
-            "recipient_ids": [ana["id"]],
+            "friend_ids": [ana["id"]],
             "message": "Updated",
         },
     )
     edited = r.get_json()
     assert [f["name"] for f in edited["files"]] == ["second.txt"]
     assert [f["name"] for f in edited["folders"]] == ["Work"]
-    assert [p["email"] for p in edited["recipients"]] == ["ana@example.com"]
+    assert [p["email"] for p in edited["friends"]] == ["ana@example.com"]
     assert edited["message"] == "Updated"
     assert edited["link"] == package["link"]  # the link stays the same
     assert shared_names(signed_in, edited) == [("", "second.txt")]
@@ -140,17 +140,17 @@ def test_edit_a_package(signed_in):
     assert [f["name"] for f in signed_in.get(url).get_json()["files"]] == ["second.txt"]
 
 
-def test_send_emails_the_recipients_and_records_history(signed_in, outbox):
+def test_send_emails_the_friends_and_records_history(signed_in, outbox):
     folder = new_folder(signed_in, "Work")
     uploaded(signed_in, name="inside.txt", folder_id=folder["id"])
     file = uploaded(signed_in, name="report.txt")
-    ana = recipient(signed_in)
-    bob = recipient(signed_in, "bob@example.com", "Bob")
+    ana = friend(signed_in)
+    bob = friend(signed_in, "bob@example.com", "Bob")
     package = make(
         signed_in,
         file_ids=[file["id"]],
         folder_ids=[folder["id"]],
-        recipient_ids=[ana["id"], bob["id"]],
+        friend_ids=[ana["id"], bob["id"]],
         message="Please read",
     )
     outbox.clear()
@@ -174,7 +174,7 @@ def test_send_emails_the_recipients_and_records_history(signed_in, outbox):
 
     (send,) = result["package"]["sends"]
     assert send["message"] == "Please read"
-    assert send["recipients"] == [
+    assert send["friends"] == [
         {"name": "Ana", "email": "ana@example.com", "sent": True},
         {"name": "Bob", "email": "bob@example.com", "sent": True},
     ]
@@ -187,28 +187,28 @@ def test_send_emails_the_recipients_and_records_history(signed_in, outbox):
 def test_history_keeps_what_was_sent_after_the_package_changes(signed_in, outbox):
     old = uploaded(signed_in, name="old.txt")
     new = uploaded(signed_in, name="new.txt")
-    ana = recipient(signed_in)
-    bob = recipient(signed_in, "bob@example.com", "Bob")
-    package = make(signed_in, file_ids=[old["id"]], recipient_ids=[ana["id"]])
+    ana = friend(signed_in)
+    bob = friend(signed_in, "bob@example.com", "Bob")
+    package = make(signed_in, file_ids=[old["id"]], friend_ids=[ana["id"]])
     url = f"/api/packages/{package['id']}"
 
     signed_in.post(f"{url}/send")
-    signed_in.patch(url, json={"file_ids": [new["id"]], "recipient_ids": [bob["id"]]})
+    signed_in.patch(url, json={"file_ids": [new["id"]], "friend_ids": [bob["id"]]})
     signed_in.delete(f"/api/drive/files/{old['id']}?permanent=1")
-    signed_in.delete(f"/api/recipients/{ana['id']}")
+    signed_in.delete(f"/api/friends/{ana['id']}")
     signed_in.post(f"{url}/send")
 
     sends = signed_in.get(url).get_json()["sends"]  # newest first
     assert [[i["name"] for i in s["items"]] for s in sends] == [["new.txt"], ["old.txt"]]
-    assert [[p["email"] for p in s["recipients"]] for s in sends] == [
+    assert [[p["email"] for p in s["friends"]] for s in sends] == [
         ["bob@example.com"],
         ["ana@example.com"],
     ]
 
 
-def test_send_needs_recipients_and_files(signed_in, outbox):
+def test_send_needs_friends_and_files(signed_in, outbox):
     folder = new_folder(signed_in, "Empty")
-    ana = recipient(signed_in)
+    ana = friend(signed_in)
     package = make(signed_in, folder_ids=[folder["id"]])
     url = f"/api/packages/{package['id']}"
     outbox.clear()
@@ -218,18 +218,18 @@ def test_send_needs_recipients_and_files(signed_in, outbox):
 
     uploaded(signed_in, folder_id=folder["id"])
     r = signed_in.post(f"{url}/send")
-    assert r.get_json()["error"] == "Add at least one recipient to the package."
+    assert r.get_json()["error"] == "Add at least one friend to the package."
 
-    signed_in.patch(url, json={"recipient_ids": [ana["id"]]})
+    signed_in.patch(url, json={"friend_ids": [ana["id"]]})
     assert signed_in.post(f"{url}/send").status_code == 200
     assert len(outbox) == 1
 
 
 def test_a_failed_email_is_reported_and_recorded(signed_in, outbox, monkeypatch):
     file = uploaded(signed_in)
-    ana = recipient(signed_in)
-    bob = recipient(signed_in, "bob@example.com", "Bob")
-    package = make(signed_in, file_ids=[file["id"]], recipient_ids=[ana["id"], bob["id"]])
+    ana = friend(signed_in)
+    bob = friend(signed_in, "bob@example.com", "Bob")
+    package = make(signed_in, file_ids=[file["id"]], friend_ids=[ana["id"], bob["id"]])
 
     def flaky(to, subject, body):
         if to == "bob@example.com":
@@ -240,7 +240,7 @@ def test_a_failed_email_is_reported_and_recorded(signed_in, outbox, monkeypatch)
 
     assert result["sent"] == ["ana@example.com"]
     assert result["failed"] == ["bob@example.com"]
-    assert [p["sent"] for p in result["package"]["sends"][0]["recipients"]] == [True, False]
+    assert [p["sent"] for p in result["package"]["sends"][0]["friends"]] == [True, False]
 
 
 def test_the_public_page_of_a_package(signed_in, client):
@@ -269,8 +269,8 @@ def test_the_public_page_of_a_package(signed_in, client):
 
 def test_the_link_expires_and_sending_renews_it(app, signed_in, outbox):
     file = uploaded(signed_in)
-    ana = recipient(signed_in)
-    package = make(signed_in, file_ids=[file["id"]], recipient_ids=[ana["id"]])
+    ana = friend(signed_in)
+    package = make(signed_in, file_ids=[file["id"]], friend_ids=[ana["id"]])
     token = token_of(package)
     assert package["expired"] is False
 

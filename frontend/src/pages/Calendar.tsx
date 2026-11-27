@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { REPEAT_LABELS, eventsApi, recipientsApi } from '../api'
-import type { CalendarEvent, EventInput, Recipient, Repeat } from '../api'
+import { REPEAT_LABELS, eventsApi, friendsApi } from '../api'
+import type { CalendarEvent, EventInput, Friend, Repeat } from '../api'
 import { ConfirmDialog, FormModal } from '../common/Modal'
 import {
   browserTimeZone,
@@ -45,13 +45,13 @@ type Draft = { event: CalendarEvent | null; start: Date; end: Date }
 type FormProps = {
   draft: Draft
   /** null while loading or if they could not be loaded */
-  recipients: Recipient[] | null
+  friends: Friend[] | null
   onClose: () => void
   onSave: (data: EventInput) => Promise<unknown>
   onDelete?: () => void
 }
 
-function EventForm({ draft, recipients, onClose, onSave, onDelete }: FormProps) {
+function EventForm({ draft, friends, onClose, onSave, onDelete }: FormProps) {
   const existing = draft.event
   const [title, setTitle] = useState(existing?.title ?? '')
   const [allDay, setAllDay] = useState(existing?.all_day ?? false)
@@ -64,7 +64,7 @@ function EventForm({ draft, recipients, onClose, onSave, onDelete }: FormProps) 
   )
   const [repeat, setRepeat] = useState<Repeat>(existing?.repeat ?? 'none')
   const [repeatUntil, setRepeatUntil] = useState(existing?.repeat_until ?? '')
-  const [invited, setInvited] = useState<Set<number>>(new Set(existing?.recipient_ids ?? []))
+  const [invited, setInvited] = useState<Set<number>>(new Set(existing?.friend_ids ?? []))
 
   // An existing reminder that is not one of the standard choices stays selectable.
   const options = useMemo(() => {
@@ -114,7 +114,7 @@ function EventForm({ draft, recipients, onClose, onSave, onDelete }: FormProps) 
       reminder_minutes: reminder === '' ? null : Number(reminder),
       repeat,
       repeat_until: repeat !== 'none' && repeatUntil ? repeatUntil : null,
-      recipient_ids: [...invited],
+      friend_ids: [...invited],
     })
   }
 
@@ -199,26 +199,26 @@ function EventForm({ draft, recipients, onClose, onSave, onDelete }: FormProps) 
         </select>
       </label>
 
-      {recipients && recipients.length > 0 && (
-        <fieldset className="recipient-picker">
+      {friends && friends.length > 0 && (
+        <fieldset className="friend-picker">
           <legend>Invite</legend>
-          {recipients.map((recipient) => (
-            <label className="check" key={recipient.id}>
+          {friends.map((friend) => (
+            <label className="check" key={friend.id}>
               <input
                 type="checkbox"
-                checked={invited.has(recipient.id)}
-                onChange={() => toggleInvite(recipient.id)}
+                checked={invited.has(friend.id)}
+                onChange={() => toggleInvite(friend.id)}
               />
               <span>
-                {`${recipient.first_name} ${recipient.last_name}`.trim()} <small>{recipient.email}</small>
+                {`${friend.first_name} ${friend.last_name}`.trim()} <small>{friend.email}</small>
               </span>
             </label>
           ))}
         </fieldset>
       )}
-      {recipients && recipients.length === 0 && (
+      {friends && friends.length === 0 && (
         <p className="hint">
-          To invite people, first add them in <Link to="/recipients">Recipients</Link>.
+          To invite people, first add them in <Link to="/friends">Friends</Link>.
         </p>
       )}
       <p className="hint">
@@ -266,15 +266,15 @@ export default function Calendar() {
   const [cursor, setCursor] = useState(() => startOfDay(new Date()))
   const [draft, setDraft] = useState<Draft | null>(null)
   const [deleting, setDeleting] = useState<CalendarEvent | null>(null)
-  const [recipients, setRecipients] = useState<Recipient[] | null>(null)
+  const [friends, setFriends] = useState<Friend[] | null>(null)
   const [todayKey] = useState(() => dateKey(new Date()))
 
-  // Inviting is optional: if recipients cannot be loaded the calendar still works.
+  // Inviting is optional: if friends cannot be loaded the calendar still works.
   useEffect(() => {
     let cancelled = false
-    recipientsApi.list().then(
+    friendsApi.list().then(
       (loaded) => {
-        if (!cancelled) setRecipients(loaded)
+        if (!cancelled) setFriends(loaded)
       },
       () => undefined,
     )
@@ -439,7 +439,7 @@ export default function Calendar() {
         <EventForm
           key={draft.event?.id ?? 'new'}
           draft={draft}
-          recipients={recipients}
+          friends={friends}
           onClose={() => setDraft(null)}
           onSave={(data) => (draft.event ? update(draft.event.id, data) : create(data))}
           onDelete={

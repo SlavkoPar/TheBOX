@@ -273,7 +273,7 @@ export function SharedLinksDialog({ api, noun, onClose }: { api: FilesApi; noun:
                 {link.expired && <span className="badge badge-danger">Expired</span>}
               </div>
               <p className="hint">
-                To {link.recipients.map((r) => r.email).join(', ') || 'nobody'} · sent{' '}
+                To {link.friends.map((r) => r.email).join(', ') || 'nobody'} · sent{' '}
                 {formatDate(link.created_at)}
                 {link.expires_at && !link.expired && ` · works until ${formatDate(link.expires_at)}`}
               </p>

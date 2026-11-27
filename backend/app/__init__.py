@@ -29,14 +29,14 @@ def create_app(config_object=Config):
     from .files import files_blueprint, shared, storage
     from .messenger import messenger
     from .packages import packages
-    from .recipients import recipients
+    from .friends import friends
     from .routes import api
     from .tasks import task_lists, tasks
 
     app.register_blueprint(api, url_prefix="/api")
     app.register_blueprint(auth, url_prefix="/api/auth")
     app.register_blueprint(admin, url_prefix="/api/admin")
-    app.register_blueprint(recipients, url_prefix="/api/recipients")
+    app.register_blueprint(friends, url_prefix="/api/friends")
     app.register_blueprint(tasks, url_prefix="/api/tasks")
     app.register_blueprint(task_lists, url_prefix="/api/task-lists")
     app.register_blueprint(events, url_prefix="/api/events")

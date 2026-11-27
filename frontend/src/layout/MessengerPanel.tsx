@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import type { FormEvent, KeyboardEvent } from 'react'
 import { Link } from 'react-router-dom'
-import { errorMessage, messengerApi, recipientsApi } from '../api'
+import { errorMessage, messengerApi, friendsApi } from '../api'
 import type { ChatFile, ChatMessage, Conversation } from '../api'
 import ItemPicker from '../common/ItemPicker'
 import { ConfirmDialog, Modal, PromptDialog } from '../common/Modal'
@@ -114,7 +114,7 @@ function OnlineDot({ person }: { person: Conversation | undefined }) {
 
 type ChatProps = {
   person: Conversation
-  /** something changed that the list of people shows (unread, last message, recipients) */
+  /** something changed that the list of people shows (unread, last message, friends) */
   onChange: () => void
 }
 
@@ -192,9 +192,9 @@ function Chat({ person, onChange }: ChatProps) {
     onChange()
   }
 
-  function addToRecipients() {
+  function addToFriends() {
     return adding.run(async () => {
-      await recipientsApi.create({
+      await friendsApi.create({
         first_name: email.split('@')[0],
         last_name: '',
         email,
@@ -208,14 +208,14 @@ function Chat({ person, onChange }: ChatProps) {
 
   return (
     <section className="chat" aria-label={`Chat with ${person.name}`}>
-      {person.recipient_id === null && (
+      {person.friend_id === null && (
         <button
           type="button"
           className="secondary chat-add"
           disabled={adding.busy}
-          onClick={addToRecipients}
+          onClick={addToFriends}
         >
-          <Icon name="plus" size={16} /> Add to recipients
+          <Icon name="plus" size={16} /> Add to friends
         </button>
       )}
 
@@ -442,7 +442,7 @@ export default function MessengerPanel({ open, peer, onOpen, onClose }: PanelPro
                 {peer && <OnlineDot person={person} />}
               </strong>
               <span className="hint">
-                {!peer ? 'Chat with your recipients' : person && person.name !== peer ? peer : ''}
+                {!peer ? 'Chat with your friends' : person && person.name !== peer ? peer : ''}
               </span>
             </div>
             <span className="spacer" />
@@ -469,9 +469,9 @@ export default function MessengerPanel({ open, peer, onOpen, onClose }: PanelPro
             <Chat key={person.email} person={person} onChange={reload} />
           ) : peer ? (
             <p className="empty">
-              {peer} is not one of your recipients. Add them in{' '}
-              <Link to="/recipients" onClick={onClose}>
-                Recipients
+              {peer} is not one of your friends. Add them in{' '}
+              <Link to="/friends" onClick={onClose}>
+                Friends
               </Link>{' '}
               to chat.
             </p>
@@ -479,8 +479,8 @@ export default function MessengerPanel({ open, peer, onOpen, onClose }: PanelPro
             !error && (
               <p className="empty">
                 No one to chat with yet. Add your friends in{' '}
-                <Link to="/recipients" onClick={onClose}>
-                  Recipients
+                <Link to="/friends" onClick={onClose}>
+                  Friends
                 </Link>
                 .
               </p>

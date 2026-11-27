@@ -1,7 +1,7 @@
 """Email reminders some time before a calendar event starts.
 
 `send_due_reminders()` finds events whose reminder time has arrived and emails
-the event's owner and the recipients invited to it. It is run:
+the event's owner and the friends invited to it. It is run:
   - by a background thread in the web process, every REMINDER_INTERVAL_SECONDS;
   - or on demand / from cron with `flask send-reminders`.
 
@@ -101,12 +101,12 @@ def send_due_reminders(now=None):
             db.session.commit()
             continue
 
-        for recipient in event.recipients:
+        for friend in event.friends:
             try:
-                send_email(recipient.email, *_invitee_email(event, start, end))
+                send_email(friend.email, *_invitee_email(event, start, end))
             except Exception:
                 current_app.logger.exception(
-                    "Could not send reminder for event %s to %s", event.id, recipient.email
+                    "Could not send reminder for event %s to %s", event.id, friend.email
                 )
     return sent
 

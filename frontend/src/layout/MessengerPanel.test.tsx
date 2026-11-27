@@ -5,7 +5,7 @@ import { describe, expect, it } from 'vitest'
 import type { ChatMessage, Conversation } from '../api'
 import Home from '../pages/Home'
 import Messenger from '../pages/Messenger'
-import Recipients from '../pages/Recipients'
+import Friends from '../pages/Friends'
 import { USER, lastBody, mockApi, renderApp } from '../test/utils'
 import AppLayout from './AppLayout'
 
@@ -14,12 +14,12 @@ const ME = { 'GET /api/auth/me': { body: { user: USER } } }
 const HELLO: ChatMessage = { id: 1, body: 'Hello Ana', created_at: '2026-11-20T09:00:00+00:00', mine: true }
 const REPLY: ChatMessage = { id: 2, body: 'Hi there', created_at: '2026-11-20T09:05:00+00:00', mine: false }
 
-const ANA: Conversation = { email: 'ana@example.com', name: 'Ana Kovač', recipient_id: 1, unread: 1, last: REPLY }
-const BOB: Conversation = { email: 'bob@example.com', name: 'Bob', recipient_id: 2, unread: 0, last: null }
+const ANA: Conversation = { email: 'ana@example.com', name: 'Ana Kovač', friend_id: 1, unread: 1, last: REPLY }
+const BOB: Conversation = { email: 'bob@example.com', name: 'Bob', friend_id: 2, unread: 0, last: null }
 const STRANGER: Conversation = {
   email: 'new@example.com',
   name: 'new@example.com',
-  recipient_id: null,
+  friend_id: null,
   unread: 2,
   last: { ...REPLY, id: 9, body: 'Do you remember me?' },
 }
@@ -33,7 +33,7 @@ function renderShell(route = '/drive') {
       <Route element={<AppLayout />}>
         <Route path="/" element={<Home />} />
         <Route path="/drive" element={<p>drive page</p>} />
-        <Route path="/recipients" element={<Recipients />} />
+        <Route path="/friends" element={<Friends />} />
         <Route path="/messenger" element={<Messenger />} />
       </Route>
     </Routes>,
@@ -172,7 +172,7 @@ describe('Messenger panel', () => {
     expect(screen.queryByRole('complementary', { name: 'Messenger' })).not.toBeInTheDocument()
   })
 
-  it('slides in over the current page, lists the recipients, and closes again', async () => {
+  it('slides in over the current page, lists the friends, and closes again', async () => {
     mockApi({ ...ME, [PEOPLE]: { body: { items: [ANA, { ...BOB, online: true }] } } })
     renderShell()
     const user = userEvent.setup()
@@ -296,8 +296,8 @@ describe('Messenger panel', () => {
       ...ME,
       [PEOPLE]: () => ({ body: { items: people } }),
       'GET /api/messenger/messages?with=new%40example.com': { body: { items: [STRANGER.last] } },
-      'POST /api/recipients': () => {
-        people = [{ ...STRANGER, name: 'new', recipient_id: 7, unread: 0 }]
+      'POST /api/friends': () => {
+        people = [{ ...STRANGER, name: 'new', friend_id: 7, unread: 0 }]
         return { status: 201, body: { id: 7 } }
       },
     })
@@ -310,31 +310,31 @@ describe('Messenger panel', () => {
     expect(await within(log).findByText('Do you remember me?')).toBeInTheDocument()
     expect(screen.getByRole('heading', { name: 'Welcome' })).toBeInTheDocument()
 
-    // Someone who wrote first can be added to the recipients
-    await user.click(within(panel).getByRole('button', { name: 'Add to recipients' }))
+    // Someone who wrote first can be added to the friends
+    await user.click(within(panel).getByRole('button', { name: 'Add to friends' }))
     expect(await screen.findByRole('region', { name: 'Chat with new' })).toBeInTheDocument()
-    expect(lastBody(fetchMock, 'POST /api/recipients')).toMatchObject({
+    expect(lastBody(fetchMock, 'POST /api/friends')).toMatchObject({
       first_name: 'new',
       email: 'new@example.com',
     })
-    expect(screen.queryByRole('button', { name: 'Add to recipients' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('button', { name: 'Add to friends' })).not.toBeInTheDocument()
   })
 
   it('explains when the address is not someone I can chat with', async () => {
     mockApi({ ...ME, [PEOPLE]: { body: { items: [BOB] } } })
     renderShell('/messenger?with=who@example.com')
 
-    expect(await screen.findByText(/who@example.com is not one of your recipients/)).toBeInTheDocument()
+    expect(await screen.findByText(/who@example.com is not one of your friends/)).toBeInTheDocument()
     expect(screen.queryByRole('textbox')).not.toBeInTheDocument()
   })
 
-  it('points to Recipients when there is nobody to chat with', async () => {
+  it('points to Friends when there is nobody to chat with', async () => {
     mockApi({ ...ME, [PEOPLE]: { body: { items: [] } } })
     renderShell()
 
     const panel = await openPanel()
     expect(await within(panel).findByText(/No one to chat with yet/)).toBeInTheDocument()
-    expect(within(panel).getByRole('link', { name: 'Recipients' })).toHaveAttribute('href', '/recipients')
+    expect(within(panel).getByRole('link', { name: 'Friends' })).toHaveAttribute('href', '/friends')
   })
 
   it('shows the error when the chats cannot be loaded', async () => {
@@ -356,10 +356,10 @@ describe('Messenger panel', () => {
     expect(screen.getByText('drive page')).toBeInTheDocument()
   })
 
-  it('opens the chat with a recipient from the Recipients page', async () => {
+  it('opens the chat with a friend from the Friends page', async () => {
     mockApi({
       ...ME,
-      'GET /api/recipients': {
+      'GET /api/friends': {
         body: {
           items: [
             { id: 1, first_name: 'Ana', last_name: 'Kovač', email: 'ana@example.com', address: '', country: '', mobile: '' },
@@ -369,12 +369,12 @@ describe('Messenger panel', () => {
       [PEOPLE]: { body: { items: [ANA] } },
       [CHAT_ANA]: { body: { items: [HELLO] } },
     })
-    renderShell('/recipients')
+    renderShell('/friends')
 
     await userEvent.click(await screen.findByRole('button', { name: 'Message Ana Kovač' }))
     const chat = await screen.findByRole('region', { name: 'Chat with Ana Kovač' })
     expect(await within(chat).findByText('Hello Ana')).toBeInTheDocument()
-    // Still on the Recipients page
-    expect(screen.getByRole('heading', { name: 'Recipients' })).toBeInTheDocument()
+    // Still on the Friends page
+    expect(screen.getByRole('heading', { name: 'Friends' })).toBeInTheDocument()
   })
 })

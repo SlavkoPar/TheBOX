@@ -47,7 +47,7 @@ describe('App', () => {
           tasks: { open: 5, done: 2 },
           calendar: { events: 0 },
           packages: { packages: 1 },
-          recipients: { recipients: 6 },
+          friends: { friends: 6 },
           messenger: { unread: 2 },
           users: { users: 9 },
         },
@@ -63,7 +63,7 @@ describe('App', () => {
     expect(tile(/^Tasks/)).toHaveTextContent('5 open · 2 done')
     expect(tile(/^Calendar/)).toHaveTextContent('0 events')
     expect(tile(/^Packages/)).toHaveTextContent('1 package')
-    expect(tile(/^Recipients/)).toHaveTextContent('6 recipients')
+    expect(tile(/^Friends/)).toHaveTextContent('6 friends')
     expect(tile(/^Messenger/)).toHaveTextContent('2 unread')
     // Administrators also get the Users tile
     expect(tile(/^Users/)).toHaveTextContent('9 users')

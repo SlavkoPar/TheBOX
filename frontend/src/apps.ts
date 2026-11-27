@@ -17,9 +17,9 @@ export const APPS: AppInfo[] = [
   { id: 'photos', name: 'Photos', path: '/photos', icon: 'photos', description: 'Albums and pictures' },
   { id: 'tasks', name: 'Tasks', path: '/tasks', icon: 'tasks', description: 'To-do list with due dates' },
   { id: 'calendar', name: 'Calendar', path: '/calendar', icon: 'calendar', description: 'Events and email reminders' },
-  { id: 'packages', name: 'Packages', path: '/packages', icon: 'packages', description: 'Files sent to recipients' },
-  { id: 'recipients', name: 'Recipients', path: '/recipients', icon: 'recipients', description: 'People you share with' },
-  { id: 'messenger', name: 'Messenger', path: '/messenger', icon: 'chat', description: 'Chat with your recipients' },
+  { id: 'packages', name: 'Packages', path: '/packages', icon: 'packages', description: 'Files sent to friends' },
+  { id: 'friends', name: 'Friends', path: '/friends', icon: 'friends', description: 'People you share with' },
+  { id: 'messenger', name: 'Messenger', path: '/messenger', icon: 'chat', description: 'Chat with your friends' },
   { id: 'users', name: 'Users', path: '/users', icon: 'user', description: 'Everyone who registered', adminOnly: true },
 ]
 
@@ -50,8 +50,8 @@ export function countsFor(appId: string, summary: Summary | null): string {
       return plural(n('events'), 'event')
     case 'packages':
       return plural(n('packages'), 'package')
-    case 'recipients':
-      return plural(n('recipients'), 'recipient')
+    case 'friends':
+      return plural(n('friends'), 'friend')
     case 'messenger':
       return n('unread') ? `${n('unread')} unread` : 'No new messages'
     case 'users':

@@ -1,19 +1,19 @@
 import { useEffect, useState } from 'react'
 import { Link } from 'react-router-dom'
-import { errorMessage, recipientsApi } from '../api'
-import type { Recipient } from '../api'
+import { errorMessage, friendsApi } from '../api'
+import type { Friend } from '../api'
 
-/** Loads the recipients when a dialog opens; null while loading. */
-export function useRecipients() {
-  const [recipients, setRecipients] = useState<Recipient[] | null>(null)
+/** Loads the friends when a dialog opens; null while loading. */
+export function useFriends() {
+  const [friends, setFriends] = useState<Friend[] | null>(null)
   const [loadError, setLoadError] = useState('')
 
   useEffect(() => {
     let cancelled = false
-    recipientsApi
+    friendsApi
       .list()
       .then((items) => {
-        if (!cancelled) setRecipients(items)
+        if (!cancelled) setFriends(items)
       })
       .catch((err) => {
         if (!cancelled) setLoadError(errorMessage(err))
@@ -23,19 +23,19 @@ export function useRecipients() {
     }
   }, [])
 
-  return { recipients, loadError }
+  return { friends, loadError }
 }
 
 type Props = {
-  recipients: Recipient[] | null
+  friends: Friend[] | null
   loadError: string
   chosen: Set<number>
   onChange: (chosen: Set<number>) => void
 }
 
 /** Checkboxes for choosing who gets a link: used when sharing and in packages. */
-export default function RecipientPicker({ recipients, loadError, chosen, onChange }: Props) {
-  const allChosen = recipients !== null && recipients.length > 0 && chosen.size === recipients.length
+export default function FriendPicker({ friends, loadError, chosen, onChange }: Props) {
+  const allChosen = friends !== null && friends.length > 0 && chosen.size === friends.length
 
   function toggle(id: number) {
     const next = new Set(chosen)
@@ -52,35 +52,35 @@ export default function RecipientPicker({ recipients, loadError, chosen, onChang
         </p>
       )}
 
-      {recipients === null && !loadError && <p>Loading recipients…</p>}
+      {friends === null && !loadError && <p>Loading friends…</p>}
 
-      {recipients !== null && recipients.length === 0 && (
+      {friends !== null && friends.length === 0 && (
         <p className="empty">
-          You have no recipients yet. <Link to="/recipients">Add recipients</Link> first.
+          You have no friends yet. <Link to="/friends">Add friends</Link> first.
         </p>
       )}
 
-      {recipients !== null && recipients.length > 0 && (
-        <fieldset className="recipient-picker">
+      {friends !== null && friends.length > 0 && (
+        <fieldset className="friend-picker">
           <legend>Send to</legend>
           <label className="check">
             <input
               type="checkbox"
               checked={allChosen}
-              onChange={() => onChange(allChosen ? new Set() : new Set(recipients.map((r) => r.id)))}
+              onChange={() => onChange(allChosen ? new Set() : new Set(friends.map((r) => r.id)))}
             />
             <strong>Everyone</strong>
           </label>
-          {recipients.map((recipient) => (
-            <label className="check" key={recipient.id}>
+          {friends.map((friend) => (
+            <label className="check" key={friend.id}>
               <input
                 type="checkbox"
-                checked={chosen.has(recipient.id)}
-                onChange={() => toggle(recipient.id)}
+                checked={chosen.has(friend.id)}
+                onChange={() => toggle(friend.id)}
               />
               <span>
-                {`${recipient.first_name} ${recipient.last_name}`.trim()}{' '}
-                <small>{recipient.email}</small>
+                {`${friend.first_name} ${friend.last_name}`.trim()}{' '}
+                <small>{friend.email}</small>
               </span>
             </label>
           ))}

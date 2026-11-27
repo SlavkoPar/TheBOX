@@ -1,5 +1,5 @@
 """Packages: a named set of files and folders, picked from any folder of Drive
-and Photos, behind one link that is emailed to the package's recipients.
+and Photos, behind one link that is emailed to the package's friends.
 
 A package can be edited and sent again; every send is recorded, so the package
 is also the history of what was sent to whom. The link opens the same public
@@ -16,7 +16,7 @@ from .common import ApiError, Str, as_utc, get_owned, id_list, iso, json_body
 from .extensions import db
 from .files import files_inside, in_trash, is_active, package_entries, path_of, share_link
 from .mail import send_email
-from .models import File, Folder, Package, PackageSend, Recipient, utcnow
+from .models import File, Folder, Package, PackageSend, Friend, utcnow
 
 packages = Blueprint("packages", __name__)
 
@@ -61,10 +61,10 @@ def _save(package, *, partial):
             package.files = [_file(i) for i in _ids(data, "file_ids", "Files")]
         if wanted("folder_ids"):
             package.folders = [_folder(i) for i in _ids(data, "folder_ids", "Folders")]
-        if wanted("recipient_ids"):
-            package.recipients = [
-                get_owned(Recipient, i, "Recipient not found.")
-                for i in _ids(data, "recipient_ids", "Recipients")
+        if wanted("friend_ids"):
+            package.friends = [
+                get_owned(Friend, i, "Friend not found.")
+                for i in _ids(data, "friend_ids", "Friends")
             ]
         if not package.files and not package.folders:
             raise ApiError("Add at least one file or folder to the package.")
@@ -111,7 +111,7 @@ def package_dict(package):
         "files": [{**f.to_dict(), **_file_item(f)} for f in files],
         # Files the link gives access to: those picked plus those inside the folders.
         "file_count": len(package_entries(package)),
-        "recipients": [r.to_dict() for r in package.recipients],
+        "friends": [r.to_dict() for r in package.friends],
         "sends": [s.to_dict() for s in package.sends],
     }
 
@@ -143,7 +143,7 @@ def get_package(package_id):
 @packages.route("/<int:package_id>", methods=["PUT", "PATCH"])
 @login_required
 def update_package(package_id):
-    """Change the name, message, contents or recipients. Nothing is emailed."""
+    """Change the name, message, contents or friends. Nothing is emailed."""
     package = get_owned(Package, package_id, NOT_FOUND)
     return jsonify(package_dict(_save(package, partial=request.method == "PATCH")))
 
@@ -160,7 +160,7 @@ def delete_package(package_id):
 @packages.post("/<int:package_id>/send")
 @login_required
 def send_package(package_id):
-    """Email the link to the package's recipients and record the send.
+    """Email the link to the package's friends and record the send.
 
     Sending renews the link: it works for SHARE_MAX_AGE_DAYS from now.
     """
@@ -168,8 +168,8 @@ def send_package(package_id):
     entries = package_entries(package)
     if not entries:
         raise ApiError("This package has no files to send.")
-    if not package.recipients:
-        raise ApiError("Add at least one recipient to the package.")
+    if not package.friends:
+        raise ApiError("Add at least one friend to the package.")
 
     package.expires_at = _expiry()
     link = share_link(package)
@@ -177,25 +177,25 @@ def send_package(package_id):
     encrypted = any(file.is_encrypted for file, _ in entries)
 
     sent, failed, record = [], [], []
-    for recipient in package.recipients:
+    for friend in package.friends:
         try:
             send_email(
-                recipient.email,
-                *_package_email(package, recipient, link, folders, files, len(entries), encrypted),
+                friend.email,
+                *_package_email(package, friend, link, folders, files, len(entries), encrypted),
             )
-            sent.append(recipient.email)
+            sent.append(friend.email)
             ok = True
         except Exception:
-            current_app.logger.exception("Could not send package email to %s", recipient.email)
-            failed.append(recipient.email)
+            current_app.logger.exception("Could not send package email to %s", friend.email)
+            failed.append(friend.email)
             ok = False
-        record.append({"name": recipient.full_name, "email": recipient.email, "sent": ok})
+        record.append({"name": friend.full_name, "email": friend.email, "sent": ok})
 
     db.session.add(
         PackageSend(
             package=package,
             message=package.message,
-            recipients=record,
+            friends=record,
             items=[
                 *[{"kind": "folder", **_folder_item(f)} for f in folders],
                 *[{"kind": "file", **_file_item(f)} for f in files],
@@ -206,10 +206,10 @@ def send_package(package_id):
     return jsonify(package=package_dict(package), link=link, sent=sent, failed=failed)
 
 
-def _package_email(package, recipient, link, folders, files, count, encrypted):
+def _package_email(package, friend, link, folders, files, count, encrypted):
     owner = package.owner.email
     lines = [
-        f"Hello {recipient.first_name},",
+        f"Hello {friend.first_name},",
         "",
         f"{owner} sent you “{package.name}” on TheBOX ({count} file{'' if count == 1 else 's'}):",
         "",

@@ -24,7 +24,7 @@ from .common import ApiError, Str, as_utc, get_owned, id_list, iso, json_body
 from .extensions import db
 from .imaging import THUMB_TYPE, describe_image
 from .mail import send_email
-from .models import File, Folder, Package, Recipient, Share, utcnow
+from .models import File, Folder, Package, Friend, Share, utcnow
 from .previews import PreviewError, build_preview
 
 FILE_APP_OPTIONS = {
@@ -599,7 +599,7 @@ def files_blueprint(app_name):
     @bp.post("/shares")
     @login_required
     def create_share():
-        """Email the selected recipients a link to view or download the selected files.
+        """Email the selected friends a link to view or download the selected files.
 
         `folder_ids` shares every file that is in those folders (and their
         subfolders) at this moment; files added later are not included.
@@ -607,7 +607,7 @@ def files_blueprint(app_name):
         data = json_body()
         file_ids = id_list(data, "file_ids", "Files") if "file_ids" in data else []
         folder_ids = id_list(data, "folder_ids", "Folders") if "folder_ids" in data else []
-        recipient_ids = id_list(data, "recipient_ids", "Recipients")
+        friend_ids = id_list(data, "friend_ids", "Friends")
         message = Str(max_len=2000, label="Message").parse("message", data.get("message"))
 
         files = {file_id: get_file(file_id) for file_id in file_ids}
@@ -618,9 +618,9 @@ def files_blueprint(app_name):
             if folder_ids:
                 raise ApiError(f"The selected folders contain no {noun}s to share.")
             raise ApiError(f"Select at least one {noun} to share.")
-        if not recipient_ids:
-            raise ApiError("Select at least one recipient.")
-        recipients = [get_owned(Recipient, rid, "Recipient not found.") for rid in recipient_ids]
+        if not friend_ids:
+            raise ApiError("Select at least one friend.")
+        friends = [get_owned(Friend, rid, "Friend not found.") for rid in friend_ids]
 
         days = current_app.config["SHARE_MAX_AGE_DAYS"]
         share = Share(
@@ -630,20 +630,20 @@ def files_blueprint(app_name):
             message=message,
             expires_at=utcnow() + timedelta(days=days) if days else None,
             files=list(files.values()),
-            recipients=recipients,
+            friends=friends,
         )
         db.session.add(share)
         db.session.commit()
 
         link = share_link(share)
         sent, failed = [], []
-        for recipient in recipients:
+        for friend in friends:
             try:
-                send_email(recipient.email, *_share_email(share, recipient, link, options))
-                sent.append(recipient.email)
+                send_email(friend.email, *_share_email(share, friend, link, options))
+                sent.append(friend.email)
             except Exception:
-                current_app.logger.exception("Could not send share email to %s", recipient.email)
-                failed.append(recipient.email)
+                current_app.logger.exception("Could not send share email to %s", friend.email)
+                failed.append(friend.email)
 
         return jsonify(share=share_dict(share), link=link, sent=sent, failed=failed), 201
 
@@ -681,12 +681,12 @@ def share_dict(share):
     }
 
 
-def _share_email(share, recipient, link, options):
+def _share_email(share, friend, link, options):
     owner = share.owner.email
     count = len(share.files)
     noun = options["noun"] + ("" if count == 1 else "s")
     lines = [
-        f"Hello {recipient.first_name},",
+        f"Hello {friend.first_name},",
         "",
         f"{owner} shared {count} {noun} with you on TheBOX:",
         "",

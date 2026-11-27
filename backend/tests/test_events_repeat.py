@@ -1,4 +1,4 @@
-"""Repeating events, invited recipients, and their reminders."""
+"""Repeating events, invited friends, and their reminders."""
 
 from datetime import date, datetime, timedelta, timezone
 from types import SimpleNamespace
@@ -30,8 +30,8 @@ def create(client, outbox=None, **kwargs):
     return r.get_json()
 
 
-def recipient(client, email="ana@example.com", first_name="Ana"):
-    return client.post("/api/recipients", json={"first_name": first_name, "email": email}).get_json()
+def friend(client, email="ana@example.com", first_name="Ana"):
+    return client.post("/api/friends", json={"first_name": first_name, "email": email}).get_json()
 
 
 def fake_event(repeat, start=START, until=None, tz="UTC", minutes=60):
@@ -104,7 +104,7 @@ def test_create_repeating_event(signed_in):
     event = create(signed_in, repeat="weekly", repeat_until="2027-01-31")
     assert event["repeat"] == "weekly"
     assert event["repeat_until"] == "2027-01-31"
-    assert event["recipient_ids"] == []
+    assert event["friend_ids"] == []
 
     plain = create(signed_in, repeat_until="2027-01-31")
     assert plain["repeat"] == "none"
@@ -121,16 +121,16 @@ def test_repeat_validation(signed_in, extra):
 # --- Invitations --------------------------------------------------------------------------
 
 
-def test_inviting_recipients_emails_them_once(signed_in, outbox):
-    ana, bo = recipient(signed_in), recipient(signed_in, "bo@example.com", "Bo")
+def test_inviting_friends_emails_them_once(signed_in, outbox):
+    ana, bo = friend(signed_in), friend(signed_in, "bo@example.com", "Bo")
     outbox.clear()
 
     r = signed_in.post(
         "/api/events",
-        json=event_json(recipient_ids=[ana["id"]], location="Room 1", repeat="weekly", timezone="Europe/Belgrade"),
+        json=event_json(friend_ids=[ana["id"]], location="Room 1", repeat="weekly", timezone="Europe/Belgrade"),
     )
     event = r.get_json()
-    assert event["recipient_ids"] == [ana["id"]]
+    assert event["friend_ids"] == [ana["id"]]
     (to, subject, body), = outbox
     assert to == "ana@example.com"
     assert subject.startswith("Invitation: Stand-up — Tuesday, 01 December 2026, 10:00–11:00")
@@ -141,55 +141,55 @@ def test_inviting_recipients_emails_them_once(signed_in, outbox):
 
     # Adding Bo invites only Bo; an unrelated edit invites nobody
     outbox.clear()
-    signed_in.patch(f"/api/events/{event['id']}", json={"recipient_ids": [ana["id"], bo["id"]]})
+    signed_in.patch(f"/api/events/{event['id']}", json={"friend_ids": [ana["id"], bo["id"]]})
     assert [m[0] for m in outbox] == ["bo@example.com"]
     outbox.clear()
     r = signed_in.patch(f"/api/events/{event['id']}", json={"location": "Room 2"})
     assert outbox == []
-    assert r.get_json()["recipient_ids"] == sorted([ana["id"], bo["id"]])
+    assert r.get_json()["friend_ids"] == sorted([ana["id"], bo["id"]])
 
 
 def test_removing_invitees_and_replacing_the_event(signed_in, outbox):
-    ana = recipient(signed_in)
-    event = create(signed_in, outbox, recipient_ids=[ana["id"]])
+    ana = friend(signed_in)
+    event = create(signed_in, outbox, friend_ids=[ana["id"]])
 
-    assert signed_in.patch(f"/api/events/{event['id']}", json={"recipient_ids": []}).get_json()["recipient_ids"] == []
-    signed_in.patch(f"/api/events/{event['id']}", json={"recipient_ids": [ana["id"]]})
+    assert signed_in.patch(f"/api/events/{event['id']}", json={"friend_ids": []}).get_json()["friend_ids"] == []
+    signed_in.patch(f"/api/events/{event['id']}", json={"friend_ids": [ana["id"]]})
     # PUT without the key means "no invitees"
-    assert signed_in.put(f"/api/events/{event['id']}", json=event_json()).get_json()["recipient_ids"] == []
+    assert signed_in.put(f"/api/events/{event['id']}", json=event_json()).get_json()["friend_ids"] == []
 
 
 def test_invitee_validation_and_isolation(signed_in, other, outbox):
-    theirs = recipient(other, "x@example.com", "X")
-    assert signed_in.post("/api/events", json=event_json(recipient_ids=[theirs["id"]])).status_code == 404
-    assert signed_in.post("/api/events", json=event_json(recipient_ids="all")).status_code == 400
-    assert signed_in.post("/api/events", json=event_json(recipient_ids=[9999])).status_code == 404
+    theirs = friend(other, "x@example.com", "X")
+    assert signed_in.post("/api/events", json=event_json(friend_ids=[theirs["id"]])).status_code == 404
+    assert signed_in.post("/api/events", json=event_json(friend_ids="all")).status_code == 400
+    assert signed_in.post("/api/events", json=event_json(friend_ids=[9999])).status_code == 404
     assert signed_in.get("/api/events").get_json()["items"] == []
 
 
-def test_deleting_a_recipient_removes_them_from_events(signed_in, outbox):
-    ana = recipient(signed_in)
-    event = create(signed_in, outbox, recipient_ids=[ana["id"]])
-    signed_in.delete(f"/api/recipients/{ana['id']}")
-    assert signed_in.get(f"/api/events/{event['id']}").get_json()["recipient_ids"] == []
+def test_deleting_a_friend_removes_them_from_events(signed_in, outbox):
+    ana = friend(signed_in)
+    event = create(signed_in, outbox, friend_ids=[ana["id"]])
+    signed_in.delete(f"/api/friends/{ana['id']}")
+    assert signed_in.get(f"/api/events/{event['id']}").get_json()["friend_ids"] == []
 
 
 def test_failed_invitation_does_not_fail_the_save(signed_in, monkeypatch):
-    ana = recipient(signed_in)
+    ana = friend(signed_in)
 
     def boom(*args):
         raise OSError("smtp down")
 
     monkeypatch.setattr(events_module, "send_email", boom)
-    assert signed_in.post("/api/events", json=event_json(recipient_ids=[ana["id"]])).status_code == 201
+    assert signed_in.post("/api/events", json=event_json(friend_ids=[ana["id"]])).status_code == 201
 
 
 # --- Reminders -----------------------------------------------------------------------------
 
 
-def test_reminder_also_goes_to_invited_recipients(signed_in, outbox):
-    ana = recipient(signed_in)
-    create(signed_in, outbox, reminder_minutes=30, recipient_ids=[ana["id"]])
+def test_reminder_also_goes_to_invited_friends(signed_in, outbox):
+    ana = friend(signed_in)
+    create(signed_in, outbox, reminder_minutes=30, friend_ids=[ana["id"]])
 
     assert reminders.send_due_reminders(START - timedelta(minutes=30)) == 1
     assert [m[0] for m in outbox] == ["user@example.com", "ana@example.com"]

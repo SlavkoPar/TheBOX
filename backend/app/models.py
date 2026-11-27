@@ -64,11 +64,11 @@ class OwnedMixin:
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
 
 
-# --- Recipients ---------------------------------------------------------------
+# --- Friends ---------------------------------------------------------------
 
 
-class Recipient(OwnedMixin, db.Model):
-    __tablename__ = "recipients"
+class Friend(OwnedMixin, db.Model):
+    __tablename__ = "friends"
 
     first_name = db.Column(db.String(100), nullable=False)
     last_name = db.Column(db.String(100), nullable=False, default="")
@@ -77,7 +77,7 @@ class Recipient(OwnedMixin, db.Model):
     country = db.Column(db.String(100), nullable=False, default="")
     mobile = db.Column(db.String(40), nullable=False, default="")
 
-    __table_args__ = (db.UniqueConstraint("user_id", "email", name="uq_recipients_user_email"),)
+    __table_args__ = (db.UniqueConstraint("user_id", "email", name="uq_friends_user_email"),)
 
     @property
     def full_name(self):
@@ -152,11 +152,11 @@ class Task(OwnedMixin, db.Model):
 
 EVENT_REPEATS = ("none", "daily", "weekly", "monthly", "yearly")
 
-event_recipients = db.Table(
-    "event_recipients",
+event_friends = db.Table(
+    "event_friends",
     db.Column("event_id", db.ForeignKey("events.id", ondelete="CASCADE"), primary_key=True),
     db.Column(
-        "recipient_id", db.ForeignKey("recipients.id", ondelete="CASCADE"), primary_key=True
+        "friend_id", db.ForeignKey("friends.id", ondelete="CASCADE"), primary_key=True
     ),
 )
 
@@ -184,8 +184,8 @@ class Event(OwnedMixin, db.Model):
     repeat = db.Column(db.String(10), nullable=False, default="none", server_default="none")
     repeat_until = db.Column(db.Date)
 
-    # Recipients invited to the event: emailed an invitation and the reminders.
-    recipients = db.relationship("Recipient", secondary=event_recipients, backref="events")
+    # Friends invited to the event: emailed an invitation and the reminders.
+    friends = db.relationship("Friend", secondary=event_friends, backref="events")
 
     def to_dict(self):
         return {
@@ -201,7 +201,7 @@ class Event(OwnedMixin, db.Model):
             "reminder_sent_at": iso(self.reminder_sent_at),
             "repeat": self.repeat,
             "repeat_until": self.repeat_until.isoformat() if self.repeat_until else None,
-            "recipient_ids": sorted(r.id for r in self.recipients),
+            "friend_ids": sorted(r.id for r in self.friends),
         }
 
 
@@ -215,11 +215,11 @@ share_files = db.Table(
     db.Column("file_id", db.ForeignKey("files.id", ondelete="CASCADE"), primary_key=True),
 )
 
-share_recipients = db.Table(
-    "share_recipients",
+share_friends = db.Table(
+    "share_friends",
     db.Column("share_id", db.ForeignKey("shares.id", ondelete="CASCADE"), primary_key=True),
     db.Column(
-        "recipient_id", db.ForeignKey("recipients.id", ondelete="CASCADE"), primary_key=True
+        "friend_id", db.ForeignKey("friends.id", ondelete="CASCADE"), primary_key=True
     ),
 )
 
@@ -304,7 +304,7 @@ class File(OwnedMixin, db.Model):
 
 
 class Share(OwnedMixin, db.Model):
-    """A set of files made available through a secret link emailed to recipients."""
+    """A set of files made available through a secret link emailed to friends."""
 
     __tablename__ = "shares"
 
@@ -315,7 +315,7 @@ class Share(OwnedMixin, db.Model):
 
     owner = db.relationship("User")
     files = db.relationship("File", secondary=share_files, back_populates="shares")
-    recipients = db.relationship("Recipient", secondary=share_recipients, backref="shares")
+    friends = db.relationship("Friend", secondary=share_friends, backref="shares")
 
     def to_dict(self):
         return {
@@ -325,7 +325,7 @@ class Share(OwnedMixin, db.Model):
             "created_at": iso(self.created_at),
             "expires_at": iso(self.expires_at),
             "files": [f.to_dict() for f in self.files],
-            "recipients": [r.to_dict() for r in self.recipients],
+            "friends": [r.to_dict() for r in self.friends],
         }
 
 
@@ -343,18 +343,18 @@ package_folders = db.Table(
     db.Column("folder_id", db.ForeignKey("folders.id", ondelete="CASCADE"), primary_key=True),
 )
 
-package_recipients = db.Table(
-    "package_recipients",
+package_friends = db.Table(
+    "package_friends",
     db.Column("package_id", db.ForeignKey("packages.id", ondelete="CASCADE"), primary_key=True),
     db.Column(
-        "recipient_id", db.ForeignKey("recipients.id", ondelete="CASCADE"), primary_key=True
+        "friend_id", db.ForeignKey("friends.id", ondelete="CASCADE"), primary_key=True
     ),
 )
 
 
 class Package(OwnedMixin, db.Model):
     """A named set of files and folders, from any folder of Drive and Photos,
-    behind one secret link that is emailed to the package's recipients.
+    behind one secret link that is emailed to the package's friends.
 
     A folder in a package is live: the link shows what is in the folder now.
     What was sent, and to whom, is kept in `sends`.
@@ -371,7 +371,7 @@ class Package(OwnedMixin, db.Model):
     owner = db.relationship("User")
     files = db.relationship("File", secondary=package_files, backref="packages")
     folders = db.relationship("Folder", secondary=package_folders, backref="packages")
-    recipients = db.relationship("Recipient", secondary=package_recipients, backref="packages")
+    friends = db.relationship("Friend", secondary=package_friends, backref="packages")
     sends = db.relationship(
         "PackageSend",
         back_populates="package",
@@ -384,7 +384,7 @@ class PackageSend(db.Model):
     """One time a package was emailed: a record of what went to whom.
 
     Names are copied here, so the record stays true after the package, its
-    files or the recipients change.
+    files or the friends change.
     """
 
     __tablename__ = "package_sends"
@@ -396,7 +396,7 @@ class PackageSend(db.Model):
     sent_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
     message = db.Column(db.Text, nullable=False, default="")
     # [{"name", "email", "sent": bool}]
-    recipients = db.Column(db.JSON, nullable=False, default=list)
+    friends = db.Column(db.JSON, nullable=False, default=list)
     # [{"kind": "file" | "folder", "app", "name", "path", "file_count" (folders)}]
     items = db.Column(db.JSON, nullable=False, default=list)
 
@@ -407,7 +407,7 @@ class PackageSend(db.Model):
             "id": self.id,
             "sent_at": iso(self.sent_at),
             "message": self.message,
-            "recipients": self.recipients,
+            "friends": self.friends,
             "items": self.items,
         }
 

@@ -8,9 +8,9 @@ ME = CREDS["email"]
 OTHER = OTHER_CREDS["email"]
 
 
-def add_recipient(client, email, first_name="Friend", last_name=""):
+def add_friend(client, email, first_name="Friend", last_name=""):
     response = client.post(
-        "/api/recipients", json={"first_name": first_name, "last_name": last_name, "email": email}
+        "/api/friends", json={"first_name": first_name, "last_name": last_name, "email": email}
     )
     assert response.status_code == 201
     return response.get_json()
@@ -38,28 +38,28 @@ def test_messenger_requires_sign_in(client):
     assert client.delete("/api/messenger/messages/1").status_code == 401
 
 
-def test_recipients_are_the_friends(signed_in):
-    add_recipient(signed_in, "zoe@example.com", "Zoe")
-    ana = add_recipient(signed_in, "ana@example.com", "Ana", "Kovač")
-    add_recipient(signed_in, ME, "Myself")  # nobody chats with themselves
+def test_the_friends_are_the_people_to_chat_with(signed_in):
+    add_friend(signed_in, "zoe@example.com", "Zoe")
+    ana = add_friend(signed_in, "ana@example.com", "Ana", "Kovač")
+    add_friend(signed_in, ME, "Myself")  # nobody chats with themselves
 
     assert people(signed_in) == [
-        {"email": "ana@example.com", "name": "Ana Kovač", "recipient_id": ana["id"], "unread": 0, "last": None, "online": False},
-        {"email": "zoe@example.com", "name": "Zoe", "recipient_id": people(signed_in)[1]["recipient_id"], "unread": 0, "last": None, "online": False},
+        {"email": "ana@example.com", "name": "Ana Kovač", "friend_id": ana["id"], "unread": 0, "last": None, "online": False},
+        {"email": "zoe@example.com", "name": "Zoe", "friend_id": people(signed_in)[1]["friend_id"], "unread": 0, "last": None, "online": False},
     ]
 
 
 def test_two_users_chat(signed_in, other):
-    add_recipient(signed_in, OTHER, "Olga")
+    add_friend(signed_in, OTHER, "Olga")
 
     sent = send(signed_in, OTHER.upper(), "  Hi Olga  ")
     assert sent.status_code == 201
     first = sent.get_json()
     assert first["body"] == "Hi Olga" and first["mine"] is True and first["created_at"]
 
-    # Olga has no recipients, and still sees who wrote to her
+    # Olga has no friends, and still sees who wrote to her
     (inbox,) = people(other)
-    assert inbox["email"] == ME and inbox["name"] == ME and inbox["recipient_id"] is None
+    assert inbox["email"] == ME and inbox["name"] == ME and inbox["friend_id"] is None
     assert inbox["unread"] == 1
     assert inbox["last"]["body"] == "Hi Olga" and inbox["last"]["mine"] is False
     assert other.get("/api/summary").get_json()["messenger"] == {"unread": 1}
@@ -69,7 +69,7 @@ def test_two_users_chat(signed_in, other):
     assert people(other)[0]["unread"] == 0
     assert other.get("/api/summary").get_json()["messenger"] == {"unread": 0}
 
-    # She can answer although the sender is not one of her recipients
+    # She can answer although the sender is not one of her friends
     reply = send(other, ME, "Hi back")
     assert reply.status_code == 201
     assert [(m["body"], m["mine"]) for m in chat(signed_in, OTHER)] == [
@@ -85,13 +85,13 @@ def test_two_users_chat(signed_in, other):
     assert [m["body"] for m in chat(signed_in, OTHER, after=reply.get_json()["id"])] == ["Still there?"]
 
 
-def test_chats_come_before_silent_recipients_newest_first(signed_in, other):
-    add_recipient(signed_in, "ana@example.com", "Ana")
-    add_recipient(signed_in, "bob@example.com", "Bob")
-    add_recipient(signed_in, "cy@example.com", "Cy")
+def test_chats_come_before_silent_friends_newest_first(signed_in, other):
+    add_friend(signed_in, "ana@example.com", "Ana")
+    add_friend(signed_in, "bob@example.com", "Bob")
+    add_friend(signed_in, "cy@example.com", "Cy")
     send(signed_in, "cy@example.com")
     send(signed_in, "bob@example.com")
-    add_recipient(other, ME)
+    add_friend(other, ME)
     assert send(other, ME).status_code == 201
 
     assert [p["email"] for p in people(signed_in)] == [
@@ -102,7 +102,7 @@ def test_chats_come_before_silent_recipients_newest_first(signed_in, other):
     ]
 
 
-def test_only_recipients_and_people_who_wrote_can_be_written_to(signed_in, other):
+def test_only_friends_and_people_who_wrote_can_be_written_to(signed_in, other):
     refused = send(signed_in, OTHER)
     assert refused.status_code == 403
     assert refused.get_json()["code"] == "not_a_friend"
@@ -111,7 +111,7 @@ def test_only_recipients_and_people_who_wrote_can_be_written_to(signed_in, other
 
 
 def test_message_is_validated(signed_in):
-    add_recipient(signed_in, "ana@example.com")
+    add_friend(signed_in, "ana@example.com")
     assert send(signed_in, "ana@example.com", "   ").status_code == 400
     assert send(signed_in, "ana@example.com", "x" * 4001).status_code == 400
     assert send(signed_in, "not an address").status_code == 400
@@ -123,7 +123,7 @@ def test_message_is_validated(signed_in):
 def test_a_message_waits_for_someone_who_registers_later(app, signed_in, outbox):
     from test_admin import sign_in
 
-    add_recipient(signed_in, "late@example.com", "Late")
+    add_friend(signed_in, "late@example.com", "Late")
     assert send(signed_in, "late@example.com", "Welcome").status_code == 201
     # Nothing tells the sender whether the address has an account
     assert people(signed_in)[0]["last"]["body"] == "Welcome"
@@ -135,10 +135,10 @@ def test_a_message_waits_for_someone_who_registers_later(app, signed_in, outbox)
 def test_others_cannot_read_or_delete_a_chat(app, signed_in, other, outbox):
     from test_admin import sign_in
 
-    add_recipient(signed_in, "ana@example.com")
+    add_friend(signed_in, "ana@example.com")
     message = send(signed_in, "ana@example.com", "Private").get_json()
-    add_recipient(other, "ana@example.com")
-    add_recipient(other, ME)
+    add_friend(other, "ana@example.com")
+    add_friend(other, ME)
 
     assert chat(other, "ana@example.com") == []
     assert chat(other, ME) == []
@@ -150,7 +150,7 @@ def test_others_cannot_read_or_delete_a_chat(app, signed_in, other, outbox):
 
 
 def test_sender_can_take_a_message_back(signed_in, other):
-    add_recipient(signed_in, OTHER)
+    add_friend(signed_in, OTHER)
     message = send(signed_in, OTHER, "Oops").get_json()
 
     assert signed_in.delete(f"/api/messenger/messages/{message['id']}").status_code == 204
@@ -160,7 +160,7 @@ def test_sender_can_take_a_message_back(signed_in, other):
 
 
 def test_first_message_of_a_burst_is_announced_by_email(app, signed_in, other, outbox):
-    add_recipient(signed_in, OTHER)
+    add_friend(signed_in, OTHER)
 
     send(signed_in, OTHER, "One")
     assert len(outbox) == 1
@@ -203,7 +203,7 @@ def test_message_is_kept_when_the_email_cannot_be_sent(signed_in, monkeypatch):
         raise RuntimeError("smtp down")
 
     monkeypatch.setattr(messenger, "send_email", broken)
-    add_recipient(signed_in, "ana@example.com")
+    add_friend(signed_in, "ana@example.com")
     assert send(signed_in, "ana@example.com", "Hi").status_code == 201
     assert [m["body"] for m in chat(signed_in, "ana@example.com")] == ["Hi"]
 
@@ -215,7 +215,7 @@ def attach(client, to, body="", **ids):
 def test_files_are_sent_with_a_message(signed_in, other):
     from test_files import PNG, new_folder, uploaded
 
-    add_recipient(signed_in, OTHER)
+    add_friend(signed_in, OTHER)
     doc = uploaded(signed_in, name="report.txt", content=b"the report")
     photo = uploaded(signed_in, app_name="photos", name="cat.png", content=PNG)
 
@@ -260,7 +260,7 @@ def test_only_the_two_sides_reach_the_files_of_a_message(app, signed_in, other, 
     from test_admin import sign_in
     from test_files import uploaded
 
-    add_recipient(signed_in, OTHER)
+    add_friend(signed_in, OTHER)
     doc = uploaded(signed_in, name="report.txt")
     untold = uploaded(signed_in, name="untold.txt")
     message = attach(signed_in, OTHER, file_ids=[doc["id"]]).get_json()
@@ -277,7 +277,7 @@ def test_only_the_two_sides_reach_the_files_of_a_message(app, signed_in, other, 
 
     # Nobody sends files that are not their own
     theirs = uploaded(other, name="theirs.txt")
-    add_recipient(third, OTHER)
+    add_friend(third, OTHER)
     assert attach(third, OTHER, file_ids=[doc["id"]]).status_code == 404
     assert attach(signed_in, OTHER, file_ids=[theirs["id"]]).status_code == 404
     assert attach(signed_in, OTHER, file_ids="all").status_code == 400
@@ -287,7 +287,7 @@ def test_only_the_two_sides_reach_the_files_of_a_message(app, signed_in, other, 
 def test_files_go_when_the_message_or_the_file_is_deleted(signed_in, other):
     from test_files import new_folder, uploaded
 
-    add_recipient(signed_in, OTHER)
+    add_friend(signed_in, OTHER)
     doc = uploaded(signed_in, name="report.txt")
     kept = uploaded(signed_in, name="kept.txt")
     message = attach(signed_in, OTHER, "Two files", file_ids=[doc["id"], kept["id"]]).get_json()
@@ -313,7 +313,7 @@ def test_files_go_when_the_message_or_the_file_is_deleted(signed_in, other):
 def test_an_encrypted_document_needs_its_password(signed_in, other):
     from test_files import PASSWORD, uploaded
 
-    add_recipient(signed_in, OTHER)
+    add_friend(signed_in, OTHER)
     doc = uploaded(signed_in, name="secret.txt", content=b"the secret")
     assert signed_in.post(f"/api/drive/files/{doc['id']}/encrypt", json={"password": PASSWORD}).status_code == 200
     message = attach(signed_in, OTHER, file_ids=[doc["id"]]).get_json()
@@ -328,16 +328,16 @@ def test_an_encrypted_document_needs_its_password(signed_in, other):
 def test_people_who_are_signed_in_show_as_online(app, signed_in, other):
     from app.models import User
 
-    add_recipient(signed_in, OTHER, "Olga")
-    add_recipient(signed_in, "nobody@example.com", "Nobody")
+    add_friend(signed_in, OTHER, "Olga")
+    add_friend(signed_in, "nobody@example.com", "Nobody")
     online = lambda: {p["email"]: p["online"] for p in people(signed_in)}  # noqa: E731
 
-    # Olga is signed in, but has not added this user to her recipients:
+    # Olga is signed in, but has not added this user to her friends:
     # nothing tells whether her address has an account
     assert online() == {OTHER: False, "nobody@example.com": False}
 
-    # Once both have each other as recipients, they see each other online
-    add_recipient(other, ME, "Me")
+    # Once both have each other as friends, they see each other online
+    add_friend(other, ME, "Me")
     assert online() == {OTHER: True, "nobody@example.com": False}
     assert {p["email"]: p["online"] for p in people(other)} == {ME: True}
 

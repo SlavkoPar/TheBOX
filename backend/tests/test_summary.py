@@ -13,7 +13,7 @@ def test_summary_is_empty_for_a_new_user(signed_in):
         "tasks": {"open": 0, "done": 0},
         "calendar": {"events": 0},
         "packages": {"packages": 0},
-        "recipients": {"recipients": 0},
+        "friends": {"friends": 0},
         "messenger": {"unread": 0},
     }
 
@@ -37,7 +37,7 @@ def test_summary_counts_each_app_without_the_trash(signed_in, other):
     done = signed_in.post("/api/tasks", json={"title": "Two"}).get_json()
     signed_in.patch(f"/api/tasks/{done['id']}", json={"is_done": True})
     signed_in.post(
-        "/api/recipients", json={"first_name": "Ana", "email": "ana@example.com"}
+        "/api/friends", json={"first_name": "Ana", "email": "ana@example.com"}
     )
 
     # Someone else's things are not counted
@@ -47,7 +47,7 @@ def test_summary_counts_each_app_without_the_trash(signed_in, other):
     assert counts["drive"] == {"folders": 2, "files": 2}
     assert counts["photos"] == {"folders": 1, "files": 0}
     assert counts["tasks"] == {"open": 1, "done": 1}
-    assert counts["recipients"] == {"recipients": 1}
+    assert counts["friends"] == {"friends": 1}
     assert "users" not in counts
 
 

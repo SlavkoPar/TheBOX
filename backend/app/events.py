@@ -17,7 +17,7 @@ from .common import (
 )
 from .extensions import db
 from .mail import send_email
-from .models import EVENT_REPEATS, Event, Recipient, User
+from .models import EVENT_REPEATS, Event, Friend, User
 
 MAX_REMINDER_MINUTES = 60 * 24 * 28  # four weeks
 
@@ -84,21 +84,21 @@ def event_details(event, start=None, end=None):
 
 
 def _extra(event, data, partial):
-    """`recipient_ids`: the recipients invited to the event."""
-    before = {r.id for r in event.recipients}
-    if "recipient_ids" in data:
-        ids = id_list(data, "recipient_ids", "Invited recipients")
+    """`friend_ids`: the friends invited to the event."""
+    before = {r.id for r in event.friends}
+    if "friend_ids" in data:
+        ids = id_list(data, "friend_ids", "Invited friends")
         invited = []
-        for recipient_id in ids:
-            recipient = db.session.get(Recipient, recipient_id)
-            if recipient is None or recipient.user_id != event.user_id:
-                raise ApiError("Recipient not found.", 404)
-            invited.append(recipient)
-        event.recipients = invited
+        for friend_id in ids:
+            friend = db.session.get(Friend, friend_id)
+            if friend is None or friend.user_id != event.user_id:
+                raise ApiError("Friend not found.", 404)
+            invited.append(friend)
+        event.friends = invited
     elif not partial:
-        event.recipients = []
+        event.friends = []
     # Remembered for after the commit: only newly invited people get the invitation.
-    event._newly_invited = [r for r in event.recipients if r.id not in before]
+    event._newly_invited = [r for r in event.friends if r.id not in before]
 
 
 def _validate(event):
@@ -131,10 +131,10 @@ def _send_invitations(event):
         return
     owner = db.session.get(User, event.user_id).email
     subject = f"Invitation: {event.title} — {describe_when(event)}"
-    for recipient in invited:
+    for friend in invited:
         body = "\n".join(
             [
-                f"Hello {recipient.first_name},",
+                f"Hello {friend.first_name},",
                 "",
                 f"{owner} invited you to: {event.title}",
                 "",
@@ -143,9 +143,9 @@ def _send_invitations(event):
             ]
         )
         try:
-            send_email(recipient.email, subject, body)
+            send_email(friend.email, subject, body)
         except Exception:
-            current_app.logger.exception("Could not send invitation to %s", recipient.email)
+            current_app.logger.exception("Could not send invitation to %s", friend.email)
 
 
 events = crud_blueprint(

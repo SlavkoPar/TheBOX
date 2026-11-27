@@ -23,7 +23,7 @@
 .app-tasks { --app-color: #2b8a3e; }
 .app-calendar { --app-color: #c2255c; }
 .app-packages { --app-color: #0c8599; }
-.app-recipients { --app-color: #7048e8; }
+.app-friends { --app-color: #7048e8; }
 .app-messenger { --app-color: #1971c2; }
 .app-users { --app-color: #c92a2a; }
 
@@ -33,7 +33,7 @@
   .app-tasks { --app-color: #69db7c; }
   .app-calendar { --app-color: #f783ac; }
   .app-packages { --app-color: #3bc9db; }
-  .app-recipients { --app-color: #b197fc; }
+  .app-friends { --app-color: #b197fc; }
   .app-messenger { --app-color: #4dabf7; }
   .app-users { --app-color: #ff8787; }
 }
@@ -795,7 +795,7 @@ label.check,
   color: var(--text-h);
 }
 
-.recipient-picker {
+.friend-picker {
   margin: 0;
   padding: 8px 12px;
   display: flex;
@@ -807,7 +807,7 @@ label.check,
   border-radius: 6px;
 }
 
-.recipient-picker legend {
+.friend-picker legend {
   padding: 0 4px;
   font-size: 14px;
 }

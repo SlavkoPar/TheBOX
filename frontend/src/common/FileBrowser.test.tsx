@@ -50,7 +50,7 @@ const INSIDE: Listing = {
   files: [file(12, 'q4.pdf', { folder_id: 4 })],
 }
 
-const RECIPIENTS = [
+const FRIENDS = [
   { id: 1, first_name: 'Ana', last_name: 'Kovač', email: 'ana@example.com', address: '', country: '', mobile: '' },
   { id: 2, first_name: 'Bo', last_name: '', email: 'bo@example.com', address: '', country: '', mobile: '' },
 ]
@@ -60,7 +60,7 @@ function renderFiles(route = '/drive') {
     <Routes>
       <Route path="/drive" element={<Drive />} />
       <Route path="/photos" element={<Photos />} />
-      <Route path="/recipients" element={<p>recipients page</p>} />
+      <Route path="/friends" element={<p>friends page</p>} />
     </Routes>,
     route,
   )
@@ -203,11 +203,11 @@ describe('FileBrowser (Drive): browsing', () => {
 })
 
 describe('FileBrowser (Drive): sharing', () => {
-  it('shares the selected documents with the selected recipients', async () => {
+  it('shares the selected documents with the selected friends', async () => {
     const fetchMock = mockApi({
       ...ME,
       'GET /api/drive/items': { body: TOP },
-      'GET /api/recipients': { body: { items: RECIPIENTS } },
+      'GET /api/friends': { body: { items: FRIENDS } },
       'POST /api/packages': { status: 201, body: { id: 7 } },
       'POST /api/packages/7/send': {
         body: { link: 'http://localhost/shared/tok', sent: ['ana@example.com'], failed: [] },
@@ -240,7 +240,7 @@ describe('FileBrowser (Drive): sharing', () => {
       message: 'For Monday',
       file_ids: [10, 11],
       folder_ids: [],
-      recipient_ids: [1],
+      friend_ids: [1],
     })
     expect(calls(fetchMock, 'POST')).toEqual(['/api/packages', '/api/packages/7/send'])
   })
@@ -249,7 +249,7 @@ describe('FileBrowser (Drive): sharing', () => {
     const fetchMock = mockApi({
       ...ME,
       'GET /api/drive/items': { body: TOP },
-      'GET /api/recipients': { body: { items: RECIPIENTS } },
+      'GET /api/friends': { body: { items: FRIENDS } },
       'POST /api/packages': { status: 201, body: { id: 7 } },
       'POST /api/packages/7/send': {
         body: { link: 'http://localhost/shared/tok', sent: ['bo@example.com'], failed: [] },
@@ -276,15 +276,15 @@ describe('FileBrowser (Drive): sharing', () => {
       message: '',
       file_ids: [10],
       folder_ids: [3],
-      recipient_ids: [2],
+      friend_ids: [2],
     })
   })
 
-  it('requires a recipient and reports addresses the email could not reach', async () => {
+  it('requires a friend and reports addresses the email could not reach', async () => {
     mockApi({
       ...ME,
       'GET /api/drive/items': { body: TOP },
-      'GET /api/recipients': { body: { items: RECIPIENTS } },
+      'GET /api/friends': { body: { items: FRIENDS } },
       'POST /api/packages': { status: 201, body: { id: 7 } },
       'POST /api/packages/7/send': {
         body: { link: 'http://localhost/shared/tok', sent: ['ana@example.com'], failed: ['bo@example.com'] },
@@ -299,18 +299,18 @@ describe('FileBrowser (Drive): sharing', () => {
     await within(dialog).findByRole('checkbox', { name: /Ana Kovač/ })
 
     await user.click(within(dialog).getByRole('button', { name: 'Send link' }))
-    expect(within(dialog).getByRole('alert')).toHaveTextContent('Select at least one recipient.')
+    expect(within(dialog).getByRole('alert')).toHaveTextContent('Select at least one friend.')
 
     await user.click(within(dialog).getByRole('checkbox', { name: 'Everyone' }))
     await user.click(within(dialog).getByRole('button', { name: 'Send link' }))
     expect(await within(dialog).findByRole('alert')).toHaveTextContent('bo@example.com')
   })
 
-  it('points to Recipients when there is nobody to share with', async () => {
+  it('points to Friends when there is nobody to share with', async () => {
     mockApi({
       ...ME,
       'GET /api/drive/items': { body: TOP },
-      'GET /api/recipients': { body: { items: [] } },
+      'GET /api/friends': { body: { items: [] } },
     })
     renderFiles()
     const user = userEvent.setup()
@@ -319,10 +319,10 @@ describe('FileBrowser (Drive): sharing', () => {
     await user.click(screen.getByRole('button', { name: 'Share' }))
     const dialog = screen.getByRole('dialog')
 
-    expect(await within(dialog).findByText(/You have no recipients yet/)).toBeInTheDocument()
+    expect(await within(dialog).findByText(/You have no friends yet/)).toBeInTheDocument()
     expect(within(dialog).getByRole('button', { name: 'Send link' })).toBeDisabled()
-    await user.click(within(dialog).getByRole('link', { name: 'Add recipients' }))
-    expect(screen.getByText('recipients page')).toBeInTheDocument()
+    await user.click(within(dialog).getByRole('link', { name: 'Add friends' }))
+    expect(screen.getByText('friends page')).toBeInTheDocument()
   })
 
   it('lists shared links and revokes one after confirmation', async () => {
@@ -334,7 +334,7 @@ describe('FileBrowser (Drive): sharing', () => {
       expires_at: '2026-12-22T08:00:00+00:00',
       expired: false,
       files: [file(10, 'report.pdf')],
-      recipients: [RECIPIENTS[0]],
+      friends: [FRIENDS[0]],
     }
     const fetchMock = mockApi({
       ...ME,
@@ -739,7 +739,7 @@ describe('FileBrowser (Photos)', () => {
     const fetchMock = mockApi({
       ...ME,
       'GET /api/photos/items': { body: PHOTOS },
-      'GET /api/recipients': { body: { items: RECIPIENTS } },
+      'GET /api/friends': { body: { items: FRIENDS } },
       'POST /api/packages': { status: 201, body: { id: 7 } },
       'POST /api/packages/7/send': {
         body: { link: 'http://localhost/shared/tok', sent: ['bo@example.com'], failed: [] },
@@ -771,7 +771,7 @@ describe('FileBrowser (Photos)', () => {
       message: '',
       file_ids: [20],
       folder_ids: [],
-      recipient_ids: [2],
+      friend_ids: [2],
     })
   })
 

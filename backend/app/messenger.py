@@ -1,12 +1,12 @@
-"""Messenger: one-to-one chats between the signed-in user and their recipients.
+"""Messenger: one-to-one chats between the signed-in user and their friends.
 
-The friends are the user's recipients. A message is addressed to an email
+A user chats with the people on their Friends list. A message is addressed to an email
 address, not to an account: the person reads it once they sign in with that
 address, whether they already have an account or register later. So the
 endpoints never tell whether an address belongs to an account.
 
 Anyone who received a message can answer it, also when the sender is not among
-their own recipients.
+their own friends.
 
 A message can carry files from the sender's Drive and Photos. They are not
 copied: the other side views and downloads the sender's files through the
@@ -33,7 +33,7 @@ from .files import (
     wants_download,
 )
 from .mail import send_email
-from .models import File, Folder, Message, Recipient, User, utcnow
+from .models import File, Folder, Message, Friend, User, utcnow
 
 messenger = Blueprint("messenger", __name__)
 
@@ -45,7 +45,7 @@ PAGE = 500
 # Someone who read or wrote in a chat this recently is taken to be looking at it.
 ACTIVE_FOR = timedelta(minutes=10)
 
-TO = Email(required=True, label="Recipient")
+TO = Email(required=True, label="Friend")
 BODY = Str(max_len=MAX_BODY, label="Message")
 
 
@@ -114,11 +114,11 @@ def _files_to_send(data):
 
 
 def _may_write(user, email):
-    """Your recipients, and whoever wrote to you first."""
-    is_recipient = db.session.scalar(
-        db.select(Recipient.id).where(Recipient.user_id == user.id, Recipient.email == email)
+    """Your friends, and whoever wrote to you first."""
+    is_friend = db.session.scalar(
+        db.select(Friend.id).where(Friend.user_id == user.id, Friend.email == email)
     )
-    if is_recipient is not None:
+    if is_friend is not None:
         return True
     return db.session.scalar(db.select(Message.id).where(*_incoming(user, email)).limit(1)) is not None
 
@@ -126,10 +126,10 @@ def _may_write(user, email):
 @messenger.get("/conversations")
 @login_required
 def conversations():
-    """The user's recipients, and anyone else they exchanged messages with.
+    """The user's friends, and anyone else they exchanged messages with.
 
     Each comes with the last message and how many are unread; chats with the
-    most recent message first, then the recipients nobody wrote to yet.
+    most recent message first, then the friends nobody wrote to yet.
     """
     user = current_user()
     people = {}
@@ -140,17 +140,17 @@ def conversations():
             {
                 "email": email,
                 "name": email,
-                "recipient_id": None,
+                "friend_id": None,
                 "unread": 0,
                 "last": None,
                 "online": False,
             },
         )
 
-    recipients = db.session.scalars(db.select(Recipient).where(Recipient.user_id == user.id))
-    for recipient in recipients:
-        if recipient.email != user.email:
-            person(recipient.email).update(name=recipient.full_name, recipient_id=recipient.id)
+    friends = db.session.scalars(db.select(Friend).where(Friend.user_id == user.id))
+    for friend in friends:
+        if friend.email != user.email:
+            person(friend.email).update(name=friend.full_name, friend_id=friend.id)
 
     last_ids = {}  # address -> id of the last message of the chat with it
     sent = db.session.execute(
@@ -181,14 +181,14 @@ def conversations():
 
     if people:
         # Only friends see each other online: the other person must have this
-        # user among their recipients too. Otherwise adding any address as a
-        # recipient would tell whether it has an account.
+        # user among their friends too. Otherwise adding any address as a
+        # friend would tell whether it has an account.
         online = db.session.scalars(
             db.select(User.email).where(
                 User.email.in_(people),
                 User.is_confirmed.is_(True),
                 User.last_seen_at > utcnow() - ONLINE_FOR,
-                User.id.in_(db.select(Recipient.user_id).where(Recipient.email == user.email)),
+                User.id.in_(db.select(Friend.user_id).where(Friend.email == user.email)),
             )
         )
         for email in online:
@@ -242,7 +242,7 @@ def send_message():
     if email == user.email:
         raise ApiError("You cannot write to yourself.")
     if not _may_write(user, email):
-        raise ApiError("Add this person to your recipients to write to them.", 403, "not_a_friend")
+        raise ApiError("Add this person to your friends to write to them.", 403, "not_a_friend")
 
     notify = _should_notify(user, email)
     message = Message(sender_id=user.id, to_email=email, body=body, files=files)

@@ -12,7 +12,7 @@ function renderLayout(route = '/') {
       <Route element={<AppLayout />}>
         <Route path="/" element={<p>home page</p>} />
         <Route path="/drive" element={<p>drive page</p>} />
-        <Route path="/recipients" element={<p>recipients page</p>} />
+        <Route path="/friends" element={<p>friends page</p>} />
       </Route>
     </Routes>,
     route,
@@ -37,7 +37,7 @@ describe('AppLayout', () => {
       'Tasks',
       'Calendar',
       'Packages',
-      'Recipients',
+      'Friends',
       'Messenger',
     ])
     for (const link of links) expect(link.querySelector('svg')).not.toBeNull()
@@ -47,10 +47,10 @@ describe('AppLayout', () => {
     renderLayout()
     await userEvent.click(await screen.findByRole('button', { name: 'Apps' }))
     await userEvent.click(
-      within(screen.getByRole('navigation', { name: 'Apps' })).getByRole('link', { name: 'Recipients' }),
+      within(screen.getByRole('navigation', { name: 'Apps' })).getByRole('link', { name: 'Friends' }),
     )
 
-    expect(screen.getByText('recipients page')).toBeInTheDocument()
+    expect(screen.getByText('friends page')).toBeInTheDocument()
     expect(screen.queryByRole('navigation', { name: 'Apps' })).not.toBeInTheDocument()
   })
 
@@ -72,20 +72,20 @@ describe('AppLayout', () => {
       'Tasks',
       'Calendar',
       'Packages',
-      'Recipients',
+      'Friends',
       'Messenger',
     ])
     for (const link of links) expect(link.querySelector('svg')).not.toBeNull()
     expect(within(bar).getByRole('link', { name: 'Drive' })).toHaveAttribute('aria-current', 'page')
 
     // It stays where it is while you move between apps
-    await userEvent.click(within(bar).getByRole('link', { name: 'Recipients' }))
-    expect(screen.getByText('recipients page')).toBeInTheDocument()
-    expect(within(bar).getByRole('link', { name: 'Recipients' })).toHaveAttribute('aria-current', 'page')
+    await userEvent.click(within(bar).getByRole('link', { name: 'Friends' }))
+    expect(screen.getByText('friends page')).toBeInTheDocument()
+    expect(within(bar).getByRole('link', { name: 'Friends' })).toHaveAttribute('aria-current', 'page')
 
     // The Messenger opens as a panel over the page
     await userEvent.click(within(bar).getByRole('link', { name: 'Messenger' }))
-    expect(screen.getByText('recipients page')).toBeInTheDocument()
+    expect(screen.getByText('friends page')).toBeInTheDocument()
     expect(screen.getByRole('complementary', { name: 'Messenger' })).toBeInTheDocument()
   })
 

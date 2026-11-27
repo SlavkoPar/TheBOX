@@ -5,7 +5,7 @@ import type { Package, PackageInput, PackageSend, ShareResult } from '../api'
 import ItemPicker from '../common/ItemPicker'
 import { ConfirmDialog, Modal } from '../common/Modal'
 import ViewToggle from '../common/ViewToggle'
-import RecipientPicker, { useRecipients } from '../common/RecipientPicker'
+import FriendPicker, { useFriends } from '../common/FriendPicker'
 import { formatDate, formatTime } from '../common/format'
 import { Icon } from '../common/icons'
 import { itemKey, locationOf } from '../common/items'
@@ -35,9 +35,9 @@ function PackageForm({ pkg, onClose, onSave }: FormProps) {
   const [name, setName] = useState(pkg?.name ?? '')
   const [message, setMessage] = useState(pkg?.message ?? '')
   const [items, setItems] = useState<PickedItem[]>(() => (pkg ? itemsOf(pkg) : []))
-  const [chosen, setChosen] = useState<Set<number>>(() => new Set(pkg?.recipients.map((r) => r.id)))
+  const [chosen, setChosen] = useState<Set<number>>(() => new Set(pkg?.friends.map((r) => r.id)))
   const [picking, setPicking] = useState(false)
-  const { recipients, loadError } = useRecipients()
+  const { friends, loadError } = useFriends()
   const { busy, error, setError, run } = useAction()
 
   async function submit(event: FormEvent) {
@@ -53,7 +53,7 @@ function PackageForm({ pkg, onClose, onSave }: FormProps) {
         message,
         file_ids: ids('file'),
         folder_ids: ids('folder'),
-        recipient_ids: [...chosen],
+        friend_ids: [...chosen],
       }),
     )
     if (saved) onClose()
@@ -115,7 +115,7 @@ function PackageForm({ pkg, onClose, onSave }: FormProps) {
           </button>
         </fieldset>
 
-        <RecipientPicker recipients={recipients} loadError={loadError} chosen={chosen} onChange={setChosen} />
+        <FriendPicker friends={friends} loadError={loadError} chosen={chosen} onChange={setChosen} />
 
         <label>
           Message (optional)
@@ -159,8 +159,8 @@ function SendDialog({ pkg, onClose, onSend }: SendProps) {
   const { busy, error, run } = useAction()
   const title = `Send “${pkg.name}”`
   const problem =
-    pkg.recipients.length === 0
-      ? 'This package has no recipients. Edit it to choose who gets it.'
+    pkg.friends.length === 0
+      ? 'This package has no friends. Edit it to choose who gets it.'
       : pkg.file_count === 0
         ? 'This package has no files to send. Edit it to add some.'
         : ''
@@ -204,7 +204,7 @@ function SendDialog({ pkg, onClose, onSend }: SendProps) {
         ) : (
           <p>
             Email the link to {count(pkg.file_count, 'file')} to{' '}
-            {pkg.recipients.map((r) => r.email).join(', ')}?
+            {pkg.friends.map((r) => r.email).join(', ')}?
           </p>
         )}
         {pkg.sends.length > 0 && !problem && (
@@ -242,7 +242,7 @@ function SendRecord({ send }: { send: PackageSend }) {
       </strong>
       <span>
         To{' '}
-        {send.recipients.map((r, index) => (
+        {send.friends.map((r, index) => (
           <span key={r.email}>
             {index > 0 && ', '}
             {r.name ? `${r.name} (${r.email})` : r.email}
@@ -302,7 +302,7 @@ function PackageCard({ pkg, onEdit, onSend, onDelete }: CardProps) {
       </div>
 
       <p className="hint">
-        {count(pkg.file_count, 'file')} · to {pkg.recipients.map((r) => r.email).join(', ') || 'nobody yet'}
+        {count(pkg.file_count, 'file')} · to {pkg.friends.map((r) => r.email).join(', ') || 'nobody yet'}
         {last && ` · last sent ${formatDate(last.sent_at)}`}
         {pkg.expires_at && !pkg.expired && ` · link works until ${formatDate(pkg.expires_at)}`}
       </p>
@@ -377,7 +377,7 @@ export default function Packages() {
           <h2>Packages</h2>
           <p className="hint">
             Put files and folders from anywhere in Drive and Photos behind one link, send it to
-            recipients, and keep a record of what was sent.
+            friends, and keep a record of what was sent.
           </p>
         </div>
         <div className="toolbar">
@@ -397,7 +397,7 @@ export default function Packages() {
       {loading ? (
         <p>Loading…</p>
       ) : items.length === 0 ? (
-        <p className="empty">No packages yet. Create one to send files to your recipients.</p>
+        <p className="empty">No packages yet. Create one to send files to your friends.</p>
       ) : (
         <ul className={mode === 'grid' ? 'package-list grid' : 'package-list'} aria-label="Packages">
           {items.map((pkg) => (

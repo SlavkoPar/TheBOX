@@ -4,7 +4,7 @@ import type { Collection, WithId } from '../api'
 
 /**
  * Loads a collection and keeps it in sync after changes.
- * Used by every page that shows a list of rows (Recipients, Tasks, Calendar).
+ * Used by every page that shows a list of rows (Friends, Tasks, Calendar).
  *
  * create / update / remove reject on failure, so forms can show the error;
  * on success the list is reloaded so the server's ordering is kept.

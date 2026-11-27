@@ -35,8 +35,8 @@ def items(client, folder=None, app_name="drive"):
     return client.get(url).get_json()
 
 
-def recipient(client, email="ana@example.com", first_name="Ana"):
-    return client.post("/api/recipients", json={"first_name": first_name, "email": email}).get_json()
+def friend(client, email="ana@example.com", first_name="Ana"):
+    return client.post("/api/friends", json={"first_name": first_name, "email": email}).get_json()
 
 
 @pytest.fixture
@@ -201,8 +201,8 @@ def test_users_cannot_reach_each_others_files(user, other):
     assert other.delete(f"/api/drive/folders/{folder['id']}").status_code == 404
     assert other.post(f"/api/drive/files/{file['id']}/encrypt", json={"password": PASSWORD}).status_code == 404
     assert upload(other, folder_id=folder["id"]).status_code == 404
-    mine = recipient(other)
-    r = other.post("/api/drive/shares", json={"file_ids": [file["id"]], "recipient_ids": [mine["id"]]})
+    mine = friend(other)
+    r = other.post("/api/drive/shares", json={"file_ids": [file["id"]], "friend_ids": [mine["id"]]})
     assert r.status_code == 404
 
 
@@ -277,18 +277,18 @@ def test_crypto_roundtrip_and_tamper_detection():
 # --- Sharing ----------------------------------------------------------------------
 
 
-def share(client, file_ids, recipient_ids, app_name="drive", **extra):
+def share(client, file_ids, friend_ids, app_name="drive", **extra):
     return client.post(
         f"/api/{app_name}/shares",
-        json={"file_ids": file_ids, "recipient_ids": recipient_ids, **extra},
+        json={"file_ids": file_ids, "friend_ids": friend_ids, **extra},
     )
 
 
-def test_share_emails_each_recipient_a_link(user, outbox):
+def test_share_emails_each_friend_a_link(user, outbox):
     a = uploaded(user, name="a.txt", content=b"AAA")
     b = uploaded(user, name="b.txt", content=b"BBB")
     uploaded(user, name="not-shared.txt")
-    ana, bo = recipient(user), recipient(user, "bo@example.com", "Bo")
+    ana, bo = friend(user), friend(user, "bo@example.com", "Bo")
 
     r = share(user, [a["id"], b["id"]], [ana["id"], bo["id"]], message="For the meeting.")
     assert r.status_code == 201
@@ -306,10 +306,10 @@ def test_share_emails_each_recipient_a_link(user, outbox):
     assert body["link"] in text
 
 
-def test_recipient_can_list_view_and_download_without_signing_in(app, user, outbox):
+def test_friend_can_list_view_and_download_without_signing_in(app, user, outbox):
     a = uploaded(user, name="a.txt", content=b"AAA")
     hidden = uploaded(user, name="hidden.txt", content=b"HIDDEN")
-    link = share(user, [a["id"]], [recipient(user)["id"]]).get_json()["link"]
+    link = share(user, [a["id"]], [friend(user)["id"]]).get_json()["link"]
     token = link.rsplit("/", 1)[1]
 
     visitor = app.test_client()  # no session
@@ -333,7 +333,7 @@ def test_recipient_can_list_view_and_download_without_signing_in(app, user, outb
 def test_shared_encrypted_document_needs_its_password(app, user, outbox):
     file = uploaded(user, name="plan.txt", content=b"top secret plan")
     user.post(f"/api/drive/files/{file['id']}/encrypt", json={"password": PASSWORD})
-    token = share(user, [file["id"]], [recipient(user)["id"]]).get_json()["share"]["token"]
+    token = share(user, [file["id"]], [friend(user)["id"]]).get_json()["share"]["token"]
     assert "password" in outbox[-1][2]
 
     visitor = app.test_client()
@@ -347,7 +347,7 @@ def test_shared_encrypted_document_needs_its_password(app, user, outbox):
 
 def test_photos_can_be_shared_the_same_way(app, user, outbox):
     photo = uploaded(user, app_name="photos", name="cat.png", content=PNG)
-    r = share(user, [photo["id"]], [recipient(user)["id"]], app_name="photos")
+    r = share(user, [photo["id"]], [friend(user)["id"]], app_name="photos")
     assert r.status_code == 201
     assert outbox[-1][1] == "user@example.com shared 1 photo with you"
 
@@ -361,7 +361,7 @@ def test_photos_can_be_shared_the_same_way(app, user, outbox):
 
 def test_share_validation(user, outbox):
     file = uploaded(user)
-    ana = recipient(user)
+    ana = friend(user)
     photo = uploaded(user, app_name="photos", name="cat.png", content=PNG)
 
     assert share(user, [], [ana["id"]]).status_code == 400
@@ -374,7 +374,7 @@ def test_share_validation(user, outbox):
     assert db.session.scalars(db.select(Share)).all() == []
 
 
-def test_share_reports_recipients_whose_email_failed(user, monkeypatch):
+def test_share_reports_friends_whose_email_failed(user, monkeypatch):
     from app import files as files_module
 
     def flaky(to, subject, body):
@@ -383,7 +383,7 @@ def test_share_reports_recipients_whose_email_failed(user, monkeypatch):
 
     monkeypatch.setattr(files_module, "send_email", flaky)
     file = uploaded(user)
-    r = share(user, [file["id"]], [recipient(user)["id"], recipient(user, "bo@example.com", "Bo")["id"]])
+    r = share(user, [file["id"]], [friend(user)["id"], friend(user, "bo@example.com", "Bo")["id"]])
     assert r.status_code == 201
     assert r.get_json()["sent"] == ["ana@example.com"]
     assert r.get_json()["failed"] == ["bo@example.com"]
@@ -391,7 +391,7 @@ def test_share_reports_recipients_whose_email_failed(user, monkeypatch):
 
 def test_expired_and_revoked_links_stop_working(app, user, outbox):
     file = uploaded(user)
-    created = share(user, [file["id"]], [recipient(user)["id"]]).get_json()["share"]
+    created = share(user, [file["id"]], [friend(user)["id"]]).get_json()["share"]
     token = created["token"]
     assert created["expires_at"] is not None
     visitor = app.test_client()
@@ -412,15 +412,15 @@ def test_expired_and_revoked_links_stop_working(app, user, outbox):
     assert visitor.get(f"/api/shared/{token}").status_code == 404
 
 
-def test_deleting_a_file_or_recipient_keeps_shares_consistent(app, user, outbox):
+def test_deleting_a_file_or_friend_keeps_shares_consistent(app, user, outbox):
     a, b = uploaded(user, name="a.txt"), uploaded(user, name="b.txt")
-    ana = recipient(user)
+    ana = friend(user)
     token = share(user, [a["id"], b["id"]], [ana["id"]]).get_json()["share"]["token"]
 
     assert user.delete(f"/api/drive/files/{a['id']}").status_code == 204
-    assert user.delete(f"/api/recipients/{ana['id']}").status_code == 204
+    assert user.delete(f"/api/friends/{ana['id']}").status_code == 204
 
     visitor = app.test_client()
     assert [f["name"] for f in visitor.get(f"/api/shared/{token}").get_json()["files"]] == ["b.txt"]
     assert visitor.get(f"/api/shared/{token}/files/{a['id']}").status_code == 404
-    assert user.get("/api/drive/shares").get_json()["items"][0]["recipients"] == []
+    assert user.get("/api/drive/shares").get_json()["items"][0]["friends"] == []

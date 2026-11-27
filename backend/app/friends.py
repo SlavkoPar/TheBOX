@@ -1,6 +1,6 @@
 from .common import ApiError, Email, Str, crud_blueprint
 from .extensions import db
-from .models import Recipient
+from .models import Friend
 
 SCHEMA = {
     "first_name": Str(required=True, max_len=100),
@@ -12,23 +12,23 @@ SCHEMA = {
 }
 
 
-def _validate(recipient):
+def _validate(friend):
     duplicate = db.session.scalar(
-        db.select(Recipient).where(
-            Recipient.user_id == recipient.user_id,
-            Recipient.email == recipient.email,
-            Recipient.id != (recipient.id or 0),
+        db.select(Friend).where(
+            Friend.user_id == friend.user_id,
+            Friend.email == friend.email,
+            Friend.id != (friend.id or 0),
         )
     )
     if duplicate is not None:
-        raise ApiError("A recipient with this email address already exists.", 409)
+        raise ApiError("A friend with this email address already exists.", 409)
 
 
-recipients = crud_blueprint(
-    "recipients",
-    Recipient,
+friends = crud_blueprint(
+    "friends",
+    Friend,
     SCHEMA,
-    order_by=lambda: (Recipient.first_name, Recipient.last_name, Recipient.id),
+    order_by=lambda: (Friend.first_name, Friend.last_name, Friend.id),
     validate=_validate,
-    noun="Recipient",
+    noun="Friend",
 )

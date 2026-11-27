@@ -4,7 +4,7 @@ import { Link } from 'react-router-dom'
 import { packagesApi } from '../api'
 import type { FileItem, Folder, ShareResult } from '../api'
 import { Modal } from './Modal'
-import RecipientPicker, { useRecipients } from './RecipientPicker'
+import FriendPicker, { useFriends } from './FriendPicker'
 import { useAction } from './useAction'
 
 type Props = {
@@ -18,7 +18,7 @@ type Props = {
 }
 
 /**
- * Pick recipients and email them a link to the selected files.
+ * Pick friends and email them a link to the selected files.
  *
  * What is shared is saved as a package, so it shows up in Packages with its
  * link and history, and can be edited or sent again from there.
@@ -30,7 +30,7 @@ export default function ShareDialog({
   folderNoun = 'folder',
   onClose,
 }: Props) {
-  const { recipients, loadError } = useRecipients()
+  const { friends, loadError } = useFriends()
   const [chosen, setChosen] = useState<Set<number>>(new Set())
   const [message, setMessage] = useState('')
   const [name, setName] = useState(() => {
@@ -54,7 +54,7 @@ export default function ShareDialog({
   async function submit(event: FormEvent) {
     event.preventDefault()
     if (chosen.size === 0) {
-      setError('Select at least one recipient.')
+      setError('Select at least one friend.')
       return
     }
     await run(async () => {
@@ -63,7 +63,7 @@ export default function ShareDialog({
         message,
         file_ids: files.map((file) => file.id),
         folder_ids: folders.map((folder) => folder.id),
-        recipient_ids: [...chosen],
+        friend_ids: [...chosen],
       }
       const saved =
         packageId === null
@@ -99,7 +99,7 @@ export default function ShareDialog({
           </p>
           {hasEncrypted && (
             <p className="hint">
-              Encrypted documents open only with their password. Give it to the recipients
+              Encrypted documents open only with their password. Give it to the friends
               yourself — it is not in the email.
             </p>
           )}
@@ -132,8 +132,8 @@ export default function ShareDialog({
           <input value={name} required onChange={(event) => setName(event.target.value)} />
         </label>
 
-        <RecipientPicker
-          recipients={recipients}
+        <FriendPicker
+          friends={friends}
           loadError={loadError}
           chosen={chosen}
           onChange={setChosen}
@@ -145,7 +145,7 @@ export default function ShareDialog({
         </label>
 
         <p className="hint">
-          Each recipient gets an email with a link to view or download{' '}
+          Each friend gets an email with a link to view or download{' '}
           {folders.length === 0 && files.length === 1 ? `this ${noun}` : `these ${noun}s`}. Anyone
           with the link can open it. It is saved as a package in Packages.
           {folders.length > 0 &&
@@ -162,7 +162,7 @@ export default function ShareDialog({
           <button type="button" className="secondary" onClick={onClose} disabled={busy}>
             Cancel
           </button>
-          <button type="submit" disabled={busy || !recipients || recipients.length === 0}>
+          <button type="submit" disabled={busy || !friends || friends.length === 0}>
             Send link
           </button>
         </div>

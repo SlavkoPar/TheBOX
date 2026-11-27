@@ -9,7 +9,7 @@ from app import files as files_module
 from app import imaging, previews
 from app.extensions import db
 from app.models import File, Folder
-from test_files import PNG, items, new_folder, recipient, share, upload, uploaded
+from test_files import PNG, items, new_folder, friend, share, upload, uploaded
 
 
 @pytest.fixture
@@ -230,7 +230,7 @@ def test_trash_is_per_app_and_per_user(user, other):
 
 def test_trashed_files_disappear_from_shared_links(app, user, outbox):
     a, b = uploaded(user, name="a.txt"), uploaded(user, name="b.txt")
-    token = share(user, [a["id"], b["id"]], [recipient(user)["id"]]).get_json()["share"]["token"]
+    token = share(user, [a["id"], b["id"]], [friend(user)["id"]]).get_json()["share"]["token"]
     visitor = app.test_client()
 
     user.delete(f"/api/drive/files/{a['id']}")
@@ -302,7 +302,7 @@ def test_sharing_a_folder_shares_the_files_inside_it(app, user, outbox):
 
     r = user.post(
         "/api/drive/shares",
-        json={"folder_ids": [work["id"]], "file_ids": [loose["id"]], "recipient_ids": [recipient(user)["id"]]},
+        json={"folder_ids": [work["id"]], "file_ids": [loose["id"]], "friend_ids": [friend(user)["id"]]},
     )
     assert r.status_code == 201
     listing = app.test_client().get(f"/api/shared/{r.get_json()['share']['token']}").get_json()
@@ -317,22 +317,22 @@ def test_sharing_a_folder_shares_the_files_inside_it(app, user, outbox):
 
 def test_sharing_an_empty_folder_is_refused(user, outbox):
     empty = new_folder(user, "Empty")
-    r = user.post("/api/drive/shares", json={"folder_ids": [empty["id"]], "recipient_ids": [recipient(user)["id"]]})
+    r = user.post("/api/drive/shares", json={"folder_ids": [empty["id"]], "friend_ids": [friend(user)["id"]]})
     assert r.status_code == 400
     assert "contain no documents" in r.get_json()["error"]
     assert outbox == []
 
 
-def test_shared_links_list_shows_link_files_recipients_and_expiry(app, user, outbox):
+def test_shared_links_list_shows_link_files_friends_and_expiry(app, user, outbox):
     a = uploaded(user, name="a.txt")
-    ana = recipient(user)
+    ana = friend(user)
     created = share(user, [a["id"]], [ana["id"]], message="hi").get_json()
 
     (listed,) = user.get("/api/drive/shares").get_json()["items"]
     assert listed["link"] == created["link"]
     assert listed["expired"] is False
     assert names(listed) == ["a.txt"]
-    assert [r["email"] for r in listed["recipients"]] == ["ana@example.com"]
+    assert [r["email"] for r in listed["friends"]] == ["ana@example.com"]
     assert user.get("/api/photos/shares").get_json()["items"] == []
 
     user.delete(f"/api/drive/files/{a['id']}")
@@ -390,7 +390,7 @@ def test_thumbnail_access_rules(app, user, other, outbox):
     assert other.get(f"/api/photos/files/{photo['id']}/thumb").status_code == 404
     assert app.test_client().get(f"/api/photos/files/{photo['id']}/thumb").status_code == 401
 
-    token = share(user, [photo["id"]], [recipient(user)["id"]], app_name="photos").get_json()["share"]["token"]
+    token = share(user, [photo["id"]], [friend(user)["id"]], app_name="photos").get_json()["share"]["token"]
     visitor = app.test_client()
     assert visitor.get(f"/api/shared/{token}/files/{photo['id']}/thumb").mimetype == "image/webp"
     assert visitor.get(f"/api/shared/{token}").get_json()["files"][0]["width"] == 800

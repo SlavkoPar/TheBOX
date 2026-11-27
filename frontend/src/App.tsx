@@ -11,7 +11,7 @@ import Login from './pages/Login'
 import Messenger from './pages/Messenger'
 import Packages from './pages/Packages'
 import Photos from './pages/Photos'
-import Recipients from './pages/Recipients'
+import Friends from './pages/Friends'
 import Register from './pages/Register'
 import ResetPassword from './pages/ResetPassword'
 import Shared from './pages/Shared'
@@ -57,7 +57,7 @@ export default function App() {
         <Route path="/tasks" element={<Tasks />} />
         <Route path="/calendar" element={<Calendar />} />
         <Route path="/packages" element={<Packages />} />
-        <Route path="/recipients" element={<Recipients />} />
+        <Route path="/friends" element={<Friends />} />
         <Route path="/messenger" element={<Messenger />} />
         <Route path="/users" element={<Users />} />
       </Route>

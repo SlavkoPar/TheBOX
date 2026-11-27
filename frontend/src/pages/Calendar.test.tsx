@@ -25,7 +25,7 @@ function eventThisMonth(extra: Partial<CalendarEvent> = {}): CalendarEvent {
     reminder_sent_at: null,
     repeat: 'none',
     repeat_until: null,
-    recipient_ids: [],
+    friend_ids: [],
     ...extra,
   }
 }
@@ -296,17 +296,17 @@ describe('Calendar: week and day views', () => {
   })
 })
 
-describe('Calendar: inviting recipients', () => {
-  const RECIPIENTS = [
+describe('Calendar: inviting friends', () => {
+  const FRIENDS = [
     { id: 1, first_name: 'Ana', last_name: 'Kovač', email: 'ana@example.com', address: '', country: '', mobile: '' },
     { id: 2, first_name: 'Bo', last_name: '', email: 'bo@example.com', address: '', country: '', mobile: '' },
   ]
 
-  it('invites the chosen recipients', async () => {
+  it('invites the chosen friends', async () => {
     const fetchMock = mockApi({
       ...ME,
       'GET /api/events': { body: { items: [] } },
-      'GET /api/recipients': { body: { items: RECIPIENTS } },
+      'GET /api/friends': { body: { items: FRIENDS } },
       'POST /api/events': (body) => ({ status: 201, body: { ...(body as EventInput), id: 1 } }),
     })
     renderApp(<Calendar />)
@@ -320,15 +320,15 @@ describe('Calendar: inviting recipients', () => {
     expect(within(dialog).getByText(/and to the people you invite/)).toBeInTheDocument()
     await user.click(within(dialog).getByRole('button', { name: 'Add event' }))
 
-    expect((lastBody(fetchMock, 'POST /api/events') as EventInput).recipient_ids).toEqual([2])
+    expect((lastBody(fetchMock, 'POST /api/events') as EventInput).friend_ids).toEqual([2])
   })
 
   it('shows who is already invited and can remove them', async () => {
     const fetchMock = mockApi({
       ...ME,
-      'GET /api/events': { body: { items: [eventThisMonth({ recipient_ids: [1, 2] })] } },
-      'GET /api/recipients': { body: { items: RECIPIENTS } },
-      'PATCH /api/events/7': { body: eventThisMonth({ recipient_ids: [2] }) },
+      'GET /api/events': { body: { items: [eventThisMonth({ friend_ids: [1, 2] })] } },
+      'GET /api/friends': { body: { items: FRIENDS } },
+      'PATCH /api/events/7': { body: eventThisMonth({ friend_ids: [2] }) },
     })
     renderApp(<Calendar />)
     const user = userEvent.setup()
@@ -340,19 +340,19 @@ describe('Calendar: inviting recipients', () => {
     await user.click(ana)
     await user.click(within(dialog).getByRole('button', { name: 'Save' }))
 
-    expect((lastBody(fetchMock, 'PATCH /api/events/7') as EventInput).recipient_ids).toEqual([2])
+    expect((lastBody(fetchMock, 'PATCH /api/events/7') as EventInput).friend_ids).toEqual([2])
   })
 
-  it('points to Recipients when there is nobody to invite', async () => {
+  it('points to Friends when there is nobody to invite', async () => {
     mockApi({
       ...ME,
       'GET /api/events': { body: { items: [] } },
-      'GET /api/recipients': { body: { items: [] } },
+      'GET /api/friends': { body: { items: [] } },
     })
     renderApp(<Calendar />)
 
     await userEvent.click(screen.getByRole('button', { name: 'New event' }))
     const dialog = screen.getByRole('dialog')
-    expect(await within(dialog).findByRole('link', { name: 'Recipients' })).toHaveAttribute('href', '/recipients')
+    expect(await within(dialog).findByRole('link', { name: 'Friends' })).toHaveAttribute('href', '/friends')
   })
 })
